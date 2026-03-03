@@ -52,8 +52,16 @@ def path_join(*parts: str) -> str:
 
 
 def ensure_dir(path: str) -> None:
-    """Create directory and parents if they don't exist."""
+    """Create directory and parents if they don't exist.
+
+    Also creates a .placeholder file so the directory survives
+    sync to services like Google Drive that drop empty folders.
+    """
     os.makedirs(path, exist_ok=True)
+    placeholder = os.path.join(path, ".placeholder")
+    if not os.path.exists(placeholder):
+        with open(placeholder, "w", newline="\n") as f:
+            f.write("")
 
 
 def get_shot_root_from_hip() -> str:

@@ -57,14 +57,22 @@ def validate_shot_structure(shot_root: str) -> tuple[bool, str]:
 
     Returns (True, "") if all present.
     Returns (False, message listing missing dirs) if any are missing.
+    Ensures .placeholder files exist in each directory for Google Drive sync.
     """
     if not os.path.isdir(shot_root):
         return False, f"Shot root directory does not exist: {shot_root}"
 
     missing = []
     for dirname in REQUIRED_SHOT_DIRS:
-        if not os.path.isdir(os.path.join(shot_root, dirname)):
+        dirpath = os.path.join(shot_root, dirname)
+        if not os.path.isdir(dirpath):
             missing.append(dirname)
+        else:
+            # Ensure .placeholder exists for Google Drive sync
+            placeholder = os.path.join(dirpath, ".placeholder")
+            if not os.path.exists(placeholder):
+                with open(placeholder, "w", newline="\n") as f:
+                    f.write("")
 
     if missing:
         return False, (

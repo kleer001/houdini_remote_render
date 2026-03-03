@@ -39,6 +39,12 @@ class TestEnsureDir:
         with tempfile.TemporaryDirectory() as tmpdir:
             ensure_dir(tmpdir)  # should not raise
 
+    def test_creates_placeholder(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            target = os.path.join(tmpdir, "newdir")
+            ensure_dir(target)
+            assert os.path.isfile(os.path.join(target, ".placeholder"))
+
 
 class TestCheckPathLength:
     def test_short_path_ok(self):

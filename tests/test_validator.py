@@ -42,6 +42,14 @@ class TestValidateShotStructure:
             ok, msg = validate_shot_structure(tmpdir)
             assert ok is True
 
+    def test_creates_placeholders(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for d in ("Output", "Cache", "Scenes", "Scripts"):
+                os.makedirs(os.path.join(tmpdir, d))
+            validate_shot_structure(tmpdir)
+            for d in ("Output", "Cache", "Scenes", "Scripts"):
+                assert os.path.isfile(os.path.join(tmpdir, d, ".placeholder"))
+
     def test_missing_dirs(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             ok, msg = validate_shot_structure(tmpdir)
