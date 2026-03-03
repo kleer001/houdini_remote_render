@@ -1,0 +1,146 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    metersPerUnit = 1
+    upAxis = "Y"
+    doc = "Minimal test scene for karma_usd_packager integration tests."
+)
+
+def Xform "World" (
+    kind = "group"
+)
+{
+    def Mesh "box" (
+        kind = "component"
+    )
+    {
+        float3[] extent = [(-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)]
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        int[] faceVertexIndices = [
+            0, 1, 3, 2,
+            4, 6, 7, 5,
+            0, 4, 5, 1,
+            2, 3, 7, 6,
+            0, 2, 6, 4,
+            1, 5, 7, 3
+        ]
+        point3f[] points = [
+            (-0.5, -0.5, 0.5),
+            (0.5, -0.5, 0.5),
+            (-0.5, 0.5, 0.5),
+            (0.5, 0.5, 0.5),
+            (-0.5, -0.5, -0.5),
+            (0.5, -0.5, -0.5),
+            (-0.5, 0.5, -0.5),
+            (0.5, 0.5, -0.5)
+        ]
+        texCoord2f[] primvars:st = [
+            (0, 0), (1, 0), (1, 1), (0, 1),
+            (0, 0), (1, 0), (1, 1), (0, 1),
+            (0, 0), (1, 0), (1, 1), (0, 1),
+            (0, 0), (1, 0), (1, 1), (0, 1),
+            (0, 0), (1, 0), (1, 1), (0, 1),
+            (0, 0), (1, 0), (1, 1), (0, 1)
+        ] (
+            interpolation = "faceVarying"
+        )
+        rel material:binding = </World/Materials/test_material>
+    }
+
+    def Camera "camera"
+    {
+        float focalLength = 50
+        float horizontalAperture = 36
+        float verticalAperture = 24
+        float2 clippingRange = (0.1, 1000)
+        double3 xformOp:translate = (0, 1, 5)
+        token[] xformOpOrder = ["xformOp:translate"]
+    }
+
+    def Scope "Materials"
+    {
+        def Material "test_material"
+        {
+            token outputs:surface.connect = </World/Materials/test_material/shader.outputs:surface>
+
+            def Shader "shader"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor.connect = </World/Materials/test_material/diffuse_tex.outputs:rgb>
+                float inputs:roughness = 0.4
+                float inputs:metallic = 0.0
+                token outputs:surface
+            }
+
+            def Shader "diffuse_tex"
+            {
+                uniform token info:id = "UsdUVTexture"
+                asset inputs:file = @./textures/diffuse_color.png@
+                float2 inputs:st.connect = </World/Materials/test_material/primvar_st.outputs:result>
+                float3 outputs:rgb
+            }
+
+            def Shader "primvar_st"
+            {
+                uniform token info:id = "UsdPrimvarReader_float2"
+                string inputs:varname = "st"
+                float2 outputs:result
+            }
+        }
+
+        def Material "udim_material"
+        {
+            token outputs:surface.connect = </World/Materials/udim_material/shader.outputs:surface>
+
+            def Shader "shader"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor.connect = </World/Materials/udim_material/diffuse_tex.outputs:rgb>
+                token outputs:surface
+            }
+
+            def Shader "diffuse_tex"
+            {
+                uniform token info:id = "UsdUVTexture"
+                asset inputs:file = @./textures/wood.<UDIM>.exr@
+                float2 inputs:st.connect = </World/Materials/udim_material/primvar_st.outputs:result>
+                float3 outputs:rgb
+            }
+
+            def Shader "primvar_st"
+            {
+                uniform token info:id = "UsdPrimvarReader_float2"
+                string inputs:varname = "st"
+                float2 outputs:result
+            }
+        }
+    }
+}
+
+def Scope "Render"
+{
+    def RenderSettings "rendersettings"
+    {
+        rel camera = </World/camera>
+        int2 resolution = (1920, 1080)
+        rel products = </Render/Products/beauty>
+    }
+
+    def Scope "Products"
+    {
+        def RenderProduct "beauty"
+        {
+            token productName = "../Output/beauty.$F4.exr"
+            rel orderedVars = </Render/Products/Vars/color>
+        }
+
+        def Scope "Vars"
+        {
+            def RenderVar "color"
+            {
+                token dataType = "color3f"
+                string sourceName = "Ci"
+            }
+        }
+    }
+}

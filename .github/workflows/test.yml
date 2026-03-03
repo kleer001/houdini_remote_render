@@ -14,5 +14,5 @@ jobs:
         python -m pip install --upgrade pip
         pip install pytest
         pip install -r requirements.txt
-    - name: Run tests
-      run: pytest
+    - name: Run tests (skip Houdini-dependent tests)
+      run: pytest -m "not houdini"

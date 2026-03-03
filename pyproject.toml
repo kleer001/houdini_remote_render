@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+markers = [
+    "houdini: tests that require a live Houdini session (skipped in CI)",
+]
