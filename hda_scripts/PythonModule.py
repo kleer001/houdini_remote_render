@@ -75,10 +75,11 @@ def on_verify_clicked(kwargs):
             log.append(f"  {msg}")
         log.append("HIP file saved [OK]")
 
-        # Report on shot directories (relative to $HIP)
+        # Report on shot directories ($HIP/shot_name/)
         hip_dir = _get_hip_dir()
-        log.append(f"HIP directory: {hip_dir}")
-        ok, msg = validate_shot_structure(hip_dir)
+        shot_dir = os.path.join(hip_dir, shot_name)
+        log.append(f"Shot directory: {shot_dir}")
+        ok, msg = validate_shot_structure(shot_dir)
         if not ok:
             log.append(f"  (will be created by Package & Stage)")
         else:
@@ -145,13 +146,14 @@ def on_package_clicked(kwargs):
             hou.ui.displayMessage(msg, severity=hou.severityType.Error)
             return
 
-        # 2. Create shot directories relative to $HIP
+        # 2. Create shot directories at $HIP/shot_name/
         hip_dir = _get_hip_dir()
+        shot_dir = os.path.join(hip_dir, shot_name)
         for d in ("Output", "Textures", "Cache", "Scenes", "Scripts"):
-            ensure_dir(os.path.join(hip_dir, d))
+            ensure_dir(os.path.join(shot_dir, d))
 
         log.append(f"Shot: {shot_name}")
-        log.append(f"HIP: {hip_dir}")
+        log.append(f"Shot dir: {shot_dir}")
 
         # 3. Get stage from input
         input_node = node.inputs()[0] if node.inputs() else None
@@ -180,7 +182,7 @@ def on_package_clicked(kwargs):
         flat_path = flatten_stage(stage, staging_dir)
         log.append(f"Stage flattened")
 
-        scenes_dir = os.path.join(hip_dir, "Scenes")
+        scenes_dir = os.path.join(shot_dir, "Scenes")
         usdz_filename = node.parm("usdz_filename").eval()
         usdz_path = os.path.join(scenes_dir, usdz_filename)
 
@@ -196,7 +198,7 @@ def on_package_clicked(kwargs):
         log.append(f"Wrapper written: {wrapper_path}")
 
         # 8. Write manifest
-        scripts_dir = os.path.join(hip_dir, "Scripts")
+        scripts_dir = os.path.join(shot_dir, "Scripts")
         manifest_path = os.path.join(scripts_dir, f"{shot_name}_manifest.txt")
 
         manifest_data = ManifestData(

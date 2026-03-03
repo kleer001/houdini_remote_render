@@ -62,9 +62,10 @@ def run_pipeline(
         log.append("=== DRY RUN COMPLETE ===")
         return log
 
-    # 3. Create shot directories relative to $HIP
+    # 3. Create shot directories at hip_dir/shot_name/
+    shot_dir = os.path.join(hip_dir, shot_name)
     for d in ("Output", "Textures", "Cache", "Scenes", "Scripts"):
-        ensure_dir(os.path.join(hip_dir, d))
+        ensure_dir(os.path.join(shot_dir, d))
 
     # 4. Inject output paths
     inject_output_paths(stage)
@@ -74,7 +75,7 @@ def run_pipeline(
     staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
     flat_path = flatten_stage(stage, staging_dir)
 
-    scenes_dir = os.path.join(hip_dir, "Scenes")
+    scenes_dir = os.path.join(shot_dir, "Scenes")
     usdz_path = os.path.join(scenes_dir, usdz_filename)
     create_usdz(flat_path, usdz_path)
     usdz_size = os.path.getsize(usdz_path) / (1024 * 1024)
@@ -86,7 +87,7 @@ def run_pipeline(
     log.append(f"Wrapper: {wrapper_path}")
 
     # 7. Manifest
-    scripts_dir = os.path.join(hip_dir, "Scripts")
+    scripts_dir = os.path.join(shot_dir, "Scripts")
     manifest_path = os.path.join(scripts_dir, f"{shot_name}_manifest.txt")
 
     try:
