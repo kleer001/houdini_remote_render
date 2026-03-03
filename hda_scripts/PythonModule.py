@@ -90,11 +90,12 @@ def on_verify_clicked(kwargs):
         log.append("HIP file saved [OK]")
 
         shot_root = node.parm("shot_root").eval()
+        log.append(f"Shot root: {shot_root}")
         ok, msg = validate_shot_structure(shot_root)
         if not ok:
-            log.append(f"Shot structure: {msg}")
+            log.append(f"  (will be created by Package & Stage)")
         else:
-            log.append(f"Shot root: {shot_root} [OK]")
+            log.append(f"  Directories: [OK]")
 
         ok, msg = validate_rop_connection(node)
         if msg:
@@ -162,13 +163,17 @@ def on_package_clicked(kwargs):
             return
 
         shot_root = node.parm("shot_root").eval()
-        ok, msg = validate_shot_structure(shot_root)
-        if not ok:
+        if not os.path.isdir(shot_root):
             hou.ui.displayMessage(
-                f"Shot structure issue:\n{msg}\n\nCreate missing directories and retry.",
+                f"Shot root does not exist: {shot_root}",
                 severity=hou.severityType.Error,
             )
             return
+
+        # Create shot directories if missing
+        from src.platform_utils import ensure_dir
+        for d in ("Output", "Textures", "Cache", "Scenes", "Scripts"):
+            ensure_dir(os.path.join(shot_root, d))
 
         log.append(f"Shot: {shot_name}")
         log.append(f"Root: {shot_root}")

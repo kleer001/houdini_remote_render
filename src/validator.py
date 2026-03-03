@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 ILLEGAL_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|]')
-REQUIRED_SHOT_DIRS = ("Output", "Cache", "Scenes", "Scripts")
+REQUIRED_SHOT_DIRS = ("Output", "Textures", "Cache", "Scenes", "Scripts")
 
 
 def validate_shot_name(name: str) -> tuple[bool, str]:
