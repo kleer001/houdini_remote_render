@@ -9,17 +9,30 @@ from pathlib import Path
 from datetime import datetime
 
 
-def _ensure_src_path():
-    """Ensure the src/ directory is on sys.path for imports."""
-    # The src dir lives next to the hda_scripts dir
-    src_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "src")
-    if src_dir not in sys.path:
-        sys.path.insert(0, os.path.dirname(src_dir))
+def _ensure_src_path(node=None):
+    """Ensure the src/ directory is on sys.path for imports.
+
+    Derives the repo root from the HDA's library file path:
+    hda/karma_usd_packager.hdalc -> repo root is one level up.
+    """
+    if node is None:
+        import hou
+        node = hou.pwd()
+
+    hda_def = node.type().definition()
+    if hda_def is None:
+        return
+    hda_dir = os.path.dirname(hda_def.libraryFilePath())
+    repo_root = os.path.dirname(hda_dir)  # up from hda/ to repo root
+
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
 
 
 def get_shot_root():
     """Called by Shot Root expression parameter."""
     import hou
+    _ensure_src_path(hou.pwd())
     try:
         from src.platform_utils import get_shot_root_from_hip
         return get_shot_root_from_hip()
@@ -31,6 +44,7 @@ def on_shot_name_changed(kwargs):
     """Parameter callback — flag red background if invalid."""
     import hou
     node = kwargs["node"]
+    _ensure_src_path(node)
     parm = node.parm("shot_name")
     name = parm.eval()
 
@@ -45,8 +59,8 @@ def on_shot_name_changed(kwargs):
 def on_verify_clicked(kwargs):
     """Dry-run pipeline — populate log with what would happen."""
     import hou
-    _ensure_src_path()
     node = kwargs["node"]
+    _ensure_src_path(node)
     log = []
 
     try:
@@ -114,8 +128,8 @@ def on_package_clicked(kwargs):
     """Full pipeline run — package and stage."""
     import hou
     import tempfile
-    _ensure_src_path()
     node = kwargs["node"]
+    _ensure_src_path(node)
     log = []
 
     try:
