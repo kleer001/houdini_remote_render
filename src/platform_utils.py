@@ -64,10 +64,9 @@ def ensure_dir(path: str) -> None:
             f.write("")
 
 
-def get_shot_root_from_hip() -> str:
-    """Derive shot root from the current HIP file path.
+def get_hip_dir() -> str:
+    """Return the directory containing the current HIP file as a POSIX path.
 
-    Returns the grandparent directory of the HIP file as a POSIX path.
     Raises RuntimeError if the scene is unsaved (untitled).
     """
     import hou
@@ -75,11 +74,10 @@ def get_shot_root_from_hip() -> str:
     hip_path = hou.hipFile.path()
     if "untitled" in Path(hip_path).name.lower():
         raise RuntimeError(
-            "Cannot determine shot root: scene is unsaved (untitled). "
-            "Please save the scene first."
+            "Scene is unsaved (untitled). Please save the scene first."
         )
 
-    return Path(hip_path).parent.parent.as_posix()
+    return Path(hip_path).parent.as_posix()
 
 
 def check_path_length(path: str, limit: int = 240) -> str | None:

@@ -1,24 +1,19 @@
 """HDA-embedded Python entry points for karma_usd_packager.
 
-Called by HDA parameter callbacks and buttons.
+All paths are relative to $HIP (the directory containing the .hip file).
 """
 
 import os
 import sys
-from pathlib import Path
 from datetime import datetime
 
 
-def _ensure_src_path(node=None):
+def _ensure_src_path(node):
     """Ensure the src/ directory is on sys.path for imports.
 
     Derives the repo root from the HDA's library file path:
     hda/karma_usd_packager.hdalc -> repo root is one level up.
     """
-    if node is None:
-        import hou
-        node = hou.pwd()
-
     hda_def = node.type().definition()
     if hda_def is None:
         return
@@ -29,15 +24,10 @@ def _ensure_src_path(node=None):
         sys.path.insert(0, repo_root)
 
 
-def get_shot_root():
-    """Called by Shot Root expression parameter."""
+def _get_hip_dir():
+    """Return the directory containing the current .hip file."""
     import hou
-    _ensure_src_path(hou.pwd())
-    try:
-        from src.platform_utils import get_shot_root_from_hip
-        return get_shot_root_from_hip()
-    except Exception:
-        return ""
+    return os.path.dirname(hou.hipFile.path())
 
 
 def on_shot_name_changed(kwargs):
@@ -45,15 +35,12 @@ def on_shot_name_changed(kwargs):
     import hou
     node = kwargs["node"]
     _ensure_src_path(node)
-    parm = node.parm("shot_name")
-    name = parm.eval()
 
     from src.validator import validate_shot_name
+    name = node.parm("shot_name").eval()
     ok, msg = validate_shot_name(name)
-
-    template = parm.parmTemplate()
     if not ok:
-        parm.set(parm.eval())  # trigger UI refresh
+        node.parm("shot_name").set(name)  # trigger UI refresh
 
 
 def on_verify_clicked(kwargs):
@@ -69,18 +56,17 @@ def on_verify_clicked(kwargs):
             validate_shot_structure, validate_rop_connection,
         )
         from src.auditor import audit_stage
-        from src.classifier import classify_dependencies
-        from src.converter import convert_all
 
         shot_name = node.parm("shot_name").eval()
 
-        # Validate
+        # Validate shot name
         ok, msg = validate_shot_name(shot_name)
         if not ok:
             hou.ui.displayMessage(msg, severity=hou.severityType.Error)
             return
         log.append(f"Shot name: {shot_name} [OK]")
 
+        # Validate HIP file
         ok, msg = validate_hip_saved()
         if not ok:
             hou.ui.displayMessage(msg, severity=hou.severityType.Error)
@@ -89,14 +75,16 @@ def on_verify_clicked(kwargs):
             log.append(f"  {msg}")
         log.append("HIP file saved [OK]")
 
-        shot_root = node.parm("shot_root").eval()
-        log.append(f"Shot root: {shot_root}")
-        ok, msg = validate_shot_structure(shot_root)
+        # Report on shot directories (relative to $HIP)
+        hip_dir = _get_hip_dir()
+        log.append(f"HIP directory: {hip_dir}")
+        ok, msg = validate_shot_structure(hip_dir)
         if not ok:
             log.append(f"  (will be created by Package & Stage)")
         else:
             log.append(f"  Directories: [OK]")
 
+        # Check ROP connection
         ok, msg = validate_rop_connection(node)
         if msg:
             log.append(f"  {msg}")
@@ -120,6 +108,8 @@ def on_verify_clicked(kwargs):
 
     except Exception as e:
         log.append(f"ERROR: {e}")
+        import traceback
+        log.append(traceback.format_exc())
         hou.ui.displayMessage(str(e), severity=hou.severityType.Error)
 
     node.parm("log_output").set("\n".join(log))
@@ -134,20 +124,13 @@ def on_package_clicked(kwargs):
     log = []
 
     try:
-        from src.validator import (
-            validate_shot_name, validate_hip_saved, validate_shot_structure,
-        )
+        from src.validator import validate_shot_name, validate_hip_saved
         from src.auditor import audit_stage, ensure_render_settings
-        from src.classifier import classify_dependencies
-        from src.converter import convert_all
-        from src.gatherer import (
-            gather_textures, gather_caches,
-            rewrite_paths_in_layer, make_cache_relative_path,
-        )
         from src.output_injector import inject_output_paths
         from src.packager import flatten_stage, create_usdz
         from src.wrapper_writer import write_wrapper
         from src.manifest import ManifestData, write_manifest
+        from src.platform_utils import ensure_dir
 
         shot_name = node.parm("shot_name").eval()
 
@@ -162,23 +145,15 @@ def on_package_clicked(kwargs):
             hou.ui.displayMessage(msg, severity=hou.severityType.Error)
             return
 
-        shot_root = node.parm("shot_root").eval()
-        if not os.path.isdir(shot_root):
-            hou.ui.displayMessage(
-                f"Shot root does not exist: {shot_root}",
-                severity=hou.severityType.Error,
-            )
-            return
-
-        # Create shot directories if missing
-        from src.platform_utils import ensure_dir
+        # 2. Create shot directories relative to $HIP
+        hip_dir = _get_hip_dir()
         for d in ("Output", "Textures", "Cache", "Scenes", "Scripts"):
-            ensure_dir(os.path.join(shot_root, d))
+            ensure_dir(os.path.join(hip_dir, d))
 
         log.append(f"Shot: {shot_name}")
-        log.append(f"Root: {shot_root}")
+        log.append(f"HIP: {hip_dir}")
 
-        # 2. Get stage from input
+        # 3. Get stage from input
         input_node = node.inputs()[0] if node.inputs() else None
         if not input_node:
             hou.ui.displayMessage(
@@ -190,22 +165,22 @@ def on_package_clicked(kwargs):
         stage = input_node.stage()
         log.append("Stage acquired from input")
 
-        # 3. Audit
+        # 4. Audit
         report = audit_stage(stage)
         ensure_render_settings(stage)
         for w in report.warnings:
             log.append(f"  ! {w}")
 
-        # 4. Inject output paths
+        # 5. Inject output paths
         inject_output_paths(stage)
         log.append("Output paths injected")
 
-        # 5. Flatten and create USDZ
+        # 6. Flatten and create USDZ
         staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
         flat_path = flatten_stage(stage, staging_dir)
-        log.append(f"Stage flattened to {flat_path}")
+        log.append(f"Stage flattened")
 
-        scenes_dir = os.path.join(shot_root, "Scenes")
+        scenes_dir = os.path.join(hip_dir, "Scenes")
         usdz_filename = node.parm("usdz_filename").eval()
         usdz_path = os.path.join(scenes_dir, usdz_filename)
 
@@ -213,16 +188,15 @@ def on_package_clicked(kwargs):
         usdz_size = os.path.getsize(usdz_path) / (1024 * 1024)
         log.append(f"USDZ created: {usdz_path} ({usdz_size:.2f} MB)")
 
-        # 6. Write wrapper
+        # 7. Write wrapper
         wrapper_filename = node.parm("wrapper_filename").eval()
         wrapper_path = os.path.join(scenes_dir, wrapper_filename)
-        cache_path_map = {}  # Populated if caches are gathered
 
-        write_wrapper(usdz_filename, cache_path_map, wrapper_path)
+        write_wrapper(usdz_filename, {}, wrapper_path)
         log.append(f"Wrapper written: {wrapper_path}")
 
-        # 7. Write manifest
-        scripts_dir = os.path.join(shot_root, "Scripts")
+        # 8. Write manifest
+        scripts_dir = os.path.join(hip_dir, "Scripts")
         manifest_path = os.path.join(scripts_dir, f"{shot_name}_manifest.txt")
 
         manifest_data = ManifestData(

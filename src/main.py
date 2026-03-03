@@ -2,26 +2,26 @@
 
 This module can be called directly for headless packaging,
 or invoked from the HDA's PythonModule callbacks.
+All output is relative to hip_dir ($HIP).
 """
 
 import os
 import tempfile
 from datetime import datetime
 
-from src.validator import (
-    validate_shot_name, validate_hip_saved, validate_shot_structure,
-)
+from src.validator import validate_shot_name
 from src.auditor import audit_stage, ensure_render_settings
 from src.output_injector import inject_output_paths
 from src.packager import flatten_stage, create_usdz
 from src.wrapper_writer import write_wrapper
 from src.manifest import ManifestData, write_manifest
+from src.platform_utils import ensure_dir
 
 
 def run_pipeline(
     stage,
     shot_name: str,
-    shot_root: str,
+    hip_dir: str,
     usdz_filename: str | None = None,
     wrapper_filename: str | None = None,
     dry_run: bool = False,
@@ -31,7 +31,7 @@ def run_pipeline(
     Args:
         stage: A Usd.Stage from a LOP network.
         shot_name: Name of the shot.
-        shot_root: Root directory of the shot structure.
+        hip_dir: Directory containing the .hip file ($HIP).
         usdz_filename: Override USDZ filename (default: {shot_name}.usdz).
         wrapper_filename: Override wrapper filename (default: {shot_name}.usda).
         dry_run: If True, only validate and audit without producing files.
@@ -49,11 +49,7 @@ def run_pipeline(
     if not ok:
         raise ValueError(msg)
     log.append(f"Shot name: {shot_name}")
-
-    ok, msg = validate_shot_structure(shot_root)
-    if not ok:
-        raise ValueError(msg)
-    log.append(f"Shot root: {shot_root}")
+    log.append(f"HIP dir: {hip_dir}")
 
     # 2. Audit
     report = audit_stage(stage)
@@ -66,27 +62,31 @@ def run_pipeline(
         log.append("=== DRY RUN COMPLETE ===")
         return log
 
-    # 3. Inject output paths
+    # 3. Create shot directories relative to $HIP
+    for d in ("Output", "Textures", "Cache", "Scenes", "Scripts"):
+        ensure_dir(os.path.join(hip_dir, d))
+
+    # 4. Inject output paths
     inject_output_paths(stage)
     log.append("Output paths injected")
 
-    # 4. Flatten & USDZ
+    # 5. Flatten & USDZ
     staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
     flat_path = flatten_stage(stage, staging_dir)
 
-    scenes_dir = os.path.join(shot_root, "Scenes")
+    scenes_dir = os.path.join(hip_dir, "Scenes")
     usdz_path = os.path.join(scenes_dir, usdz_filename)
     create_usdz(flat_path, usdz_path)
     usdz_size = os.path.getsize(usdz_path) / (1024 * 1024)
     log.append(f"USDZ: {usdz_path} ({usdz_size:.2f} MB)")
 
-    # 5. Wrapper
+    # 6. Wrapper
     wrapper_path = os.path.join(scenes_dir, wrapper_filename)
     write_wrapper(usdz_filename, {}, wrapper_path)
     log.append(f"Wrapper: {wrapper_path}")
 
-    # 6. Manifest
-    scripts_dir = os.path.join(shot_root, "Scripts")
+    # 7. Manifest
+    scripts_dir = os.path.join(hip_dir, "Scripts")
     manifest_path = os.path.join(scripts_dir, f"{shot_name}_manifest.txt")
 
     try:

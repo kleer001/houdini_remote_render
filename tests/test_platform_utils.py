@@ -67,9 +67,9 @@ class TestGetImaketxPath:
 
 
 @pytest.mark.houdini
-class TestGetShotRootFromHip:
-    def test_returns_grandparent(self):
-        from src.platform_utils import get_shot_root_from_hip
-        root = get_shot_root_from_hip()
-        assert isinstance(root, str)
-        assert "/" in root
+class TestGetHipDir:
+    def test_returns_hip_directory(self):
+        from src.platform_utils import get_hip_dir
+        hip_dir = get_hip_dir()
+        assert isinstance(hip_dir, str)
+        assert "/" in hip_dir
