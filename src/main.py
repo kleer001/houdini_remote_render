@@ -1,8 +1,111 @@
-"""Main module for houdini_remote_render."""
+"""Karma USD Packager — pipeline entry point.
 
-def main():
-    """Main function."""
-    pass
+This module can be called directly for headless packaging,
+or invoked from the HDA's PythonModule callbacks.
+"""
 
-if __name__ == "__main__":
-    main()
+import os
+import tempfile
+from datetime import datetime
+
+from src.validator import (
+    validate_shot_name, validate_hip_saved, validate_shot_structure,
+)
+from src.auditor import audit_stage, ensure_render_settings
+from src.output_injector import inject_output_paths
+from src.packager import flatten_stage, create_usdz
+from src.wrapper_writer import write_wrapper
+from src.manifest import ManifestData, write_manifest
+
+
+def run_pipeline(
+    stage,
+    shot_name: str,
+    shot_root: str,
+    usdz_filename: str | None = None,
+    wrapper_filename: str | None = None,
+    dry_run: bool = False,
+) -> list[str]:
+    """Run the full packaging pipeline.
+
+    Args:
+        stage: A Usd.Stage from a LOP network.
+        shot_name: Name of the shot.
+        shot_root: Root directory of the shot structure.
+        usdz_filename: Override USDZ filename (default: {shot_name}.usdz).
+        wrapper_filename: Override wrapper filename (default: {shot_name}.usda).
+        dry_run: If True, only validate and audit without producing files.
+
+    Returns:
+        List of log messages.
+    """
+    log = []
+
+    usdz_filename = usdz_filename or f"{shot_name}.usdz"
+    wrapper_filename = wrapper_filename or f"{shot_name}.usda"
+
+    # 1. Validate
+    ok, msg = validate_shot_name(shot_name)
+    if not ok:
+        raise ValueError(msg)
+    log.append(f"Shot name: {shot_name}")
+
+    ok, msg = validate_shot_structure(shot_root)
+    if not ok:
+        raise ValueError(msg)
+    log.append(f"Shot root: {shot_root}")
+
+    # 2. Audit
+    report = audit_stage(stage)
+    ensure_render_settings(stage)
+    log.append(f"Stage audit: {sum(1 for _ in stage.Traverse())} prims")
+    for w in report.warnings:
+        log.append(f"  ! {w}")
+
+    if dry_run:
+        log.append("=== DRY RUN COMPLETE ===")
+        return log
+
+    # 3. Inject output paths
+    inject_output_paths(stage)
+    log.append("Output paths injected")
+
+    # 4. Flatten & USDZ
+    staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
+    flat_path = flatten_stage(stage, staging_dir)
+
+    scenes_dir = os.path.join(shot_root, "Scenes")
+    usdz_path = os.path.join(scenes_dir, usdz_filename)
+    create_usdz(flat_path, usdz_path)
+    usdz_size = os.path.getsize(usdz_path) / (1024 * 1024)
+    log.append(f"USDZ: {usdz_path} ({usdz_size:.2f} MB)")
+
+    # 5. Wrapper
+    wrapper_path = os.path.join(scenes_dir, wrapper_filename)
+    write_wrapper(usdz_filename, {}, wrapper_path)
+    log.append(f"Wrapper: {wrapper_path}")
+
+    # 6. Manifest
+    scripts_dir = os.path.join(shot_root, "Scripts")
+    manifest_path = os.path.join(scripts_dir, f"{shot_name}_manifest.txt")
+
+    try:
+        import hou
+        houdini_version = hou.applicationVersionString()
+    except ImportError:
+        houdini_version = "unknown"
+
+    manifest_data = ManifestData(
+        shot_name=shot_name,
+        houdini_version=houdini_version,
+        generated_at=datetime.now().isoformat(),
+        usdz_path=usdz_path,
+        wrapper_path=wrapper_path,
+        warnings=report.warnings,
+        total_usdz_size_mb=usdz_size,
+    )
+    write_manifest(manifest_path, manifest_data)
+    log.append(f"Manifest: {manifest_path}")
+
+    log.append("=== PACKAGING COMPLETE ===")
+    return log
