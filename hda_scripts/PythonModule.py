@@ -4,7 +4,9 @@ All paths are relative to $HIP (the directory containing the .hip file).
 """
 
 import os
+import shutil
 import sys
+import zipfile
 from datetime import datetime
 
 
@@ -188,16 +190,26 @@ def on_package_clicked(kwargs):
         log.append(f"Package — {shot_name}")
         log.append(SEP)
         log.append("")
-        log.append(f"  [1/7] Validating .......... PASS")
+        log.append(f"  [1/8] Validating .......... PASS")
 
         # 2. Create shot directories at $HIP/shot_name/
         hip_dir = _get_hip_dir()
         shot_dir = os.path.join(hip_dir, shot_name)
         for d in ("Output", "Textures", "Cache", "Scenes", "Scripts"):
             ensure_dir(os.path.join(shot_dir, d))
-        log.append(f"  [2/7] Creating dirs ....... DONE")
+        log.append(f"  [2/8] Creating dirs ....... DONE")
 
-        # 3. Get stage from input
+        # 3. Backup current .hip file as a zip into the shot directory
+        hip_path = hou.hipFile.path()
+        hip_basename = os.path.basename(hip_path)
+        zip_name = hip_basename + ".zip"
+        zip_path = os.path.join(shot_dir, zip_name)
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.write(hip_path, hip_basename)
+        zip_size = os.path.getsize(zip_path) / (1024 * 1024)
+        log.append(f"  [3/8] Backing up HIP ..... {zip_size:.2f} MB")
+
+        # 4. Get stage from input
         input_node = node.inputs()[0] if node.inputs() else None
         if not input_node:
             hou.ui.displayMessage(
@@ -208,16 +220,16 @@ def on_package_clicked(kwargs):
 
         stage = input_node.stage()
 
-        # 4. Audit
+        # 5. Audit
         report = audit_stage(stage)
         ensure_render_settings(stage)
-        log.append(f"  [3/7] Auditing stage ...... PASS")
+        log.append(f"  [4/8] Auditing stage ...... PASS")
 
-        # 5. Inject output paths
+        # 6. Inject output paths
         inject_output_paths(stage)
-        log.append(f"  [4/7] Injecting paths ..... DONE")
+        log.append(f"  [5/8] Injecting paths ..... DONE")
 
-        # 6. Flatten and create USDZ
+        # 7. Flatten and create USDZ
         staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
         flat_path = flatten_stage(stage, staging_dir)
 
@@ -227,16 +239,16 @@ def on_package_clicked(kwargs):
 
         create_usdz(flat_path, usdz_path)
         usdz_size = os.path.getsize(usdz_path) / (1024 * 1024)
-        log.append(f"  [5/7] Creating USDZ ....... {usdz_size:.2f} MB")
+        log.append(f"  [6/8] Creating USDZ ....... {usdz_size:.2f} MB")
 
-        # 7. Write wrapper
+        # 8. Write wrapper
         wrapper_filename = node.parm("wrapper_filename").eval()
         wrapper_path = os.path.join(scenes_dir, wrapper_filename)
 
         write_wrapper(usdz_filename, {}, wrapper_path)
-        log.append(f"  [6/7] Writing wrapper ..... DONE")
+        log.append(f"  [7/8] Writing wrapper ..... DONE")
 
-        # 8. Write manifest
+        # 9. Write manifest
         scripts_dir = os.path.join(shot_dir, "Scripts")
         manifest_path = os.path.join(scripts_dir, f"{shot_name}_manifest.txt")
 
@@ -250,7 +262,7 @@ def on_package_clicked(kwargs):
             total_usdz_size_mb=usdz_size,
         )
         write_manifest(manifest_path, manifest_data)
-        log.append(f"  [7/7] Writing manifest .... DONE")
+        log.append(f"  [8/8] Writing manifest .... DONE")
 
         # Warnings
         if report.warnings:
@@ -262,6 +274,7 @@ def on_package_clicked(kwargs):
         # Output summary
         log.append("")
         log.append("  Output:")
+        log.append(f"    HIP zip:  {zip_path}")
         log.append(f"    USDZ:     {usdz_path}")
         log.append(f"    Wrapper:  {wrapper_path}")
         log.append(f"    Manifest: {manifest_path}")
