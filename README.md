@@ -29,11 +29,37 @@ The HDA is a pass-through node — it doesn't modify your live stage. Drop it be
 4. Click **Package & Stage** to produce the USDZ, wrapper, and manifest
 
 Output goes into `$HIP/{shot_name}/`:
-- `Scenes/` — USDZ + wrapper
-- `Scripts/` — manifest
-- `Output/` — render output (set by the injector)
+- `Output/` — render output (paths injected by the packager)
 - `Textures/` — converted textures
 - `Cache/` — external caches (VDB, bgeo.sc, Alembic)
+- `Scenes/` — USDZ archive + `.usda` wrapper
+- `Scripts/` — manifest
+
+## Pipeline Modules
+
+| Module | Purpose |
+|---|---|
+| `validator` | Shot name, HIP file, and directory structure checks |
+| `auditor` | USD stage inspection — render settings, camera, products, instances |
+| `classifier` | Dependency scanning and UDIM detection |
+| `converter` | Texture conversion via `imaketx` |
+| `gatherer` | File copying and USD path rewriting |
+| `output_injector` | RenderProduct output path authoring |
+| `packager` | Stage flatten + USDZ creation |
+| `wrapper_writer` | Thin `.usda` wrapper with cache references |
+| `manifest` | Human-readable packaging report |
+
+## Testing
+
+```bash
+# CI tests (no Houdini required)
+pytest -m "not houdini"
+
+# Full tests (requires live Houdini session)
+pytest
+```
+
+Tests marked `@pytest.mark.houdini` require a running Houdini instance and are skipped in CI.
 
 ## License
 
