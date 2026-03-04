@@ -24,6 +24,7 @@ class ManifestData:
     warnings: list[str] = field(default_factory=list)
     total_usdz_size_mb: float = 0.0
     total_cache_size_mb: float = 0.0
+    elapsed_seconds: float = 0.0
 
 
 def write_manifest(output_path: str, data: ManifestData) -> None:
@@ -42,6 +43,7 @@ def write_manifest(output_path: str, data: ManifestData) -> None:
         f"Shot Name:        {data.shot_name}",
         f"Houdini Version:  {data.houdini_version}",
         f"Generated:        {data.generated_at}",
+        f"Elapsed:          {data.elapsed_seconds:.1f}s",
         f"",
         f"Output Files",
         f"{'-' * 50}",

@@ -58,6 +58,10 @@ def create_usdz(
     success = UsdUtils.CreateNewUsdzPackage(flattened_usda, output_usdz)
 
     if not success:
-        raise RuntimeError(f"Failed to create USDZ package at {output_usdz}")
+        raise RuntimeError(
+            f"Failed to create USDZ at {output_usdz}. Common causes: "
+            "referenced assets don't exist on disk, or asset paths "
+            "contain unresolved variables."
+        )
 
     return [output_usdz]

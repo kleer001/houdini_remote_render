@@ -6,7 +6,9 @@ All output is relative to hip_dir ($HIP).
 """
 
 import os
+import shutil
 import tempfile
+import time
 from datetime import datetime
 
 from src.validator import validate_shot_name
@@ -40,6 +42,7 @@ def run_pipeline(
         List of log messages.
     """
     log = []
+    t0 = time.time()
 
     usdz_filename = usdz_filename or f"{shot_name}.usdz"
     wrapper_filename = wrapper_filename or f"{shot_name}.usda"
@@ -78,6 +81,7 @@ def run_pipeline(
     scenes_dir = os.path.join(shot_dir, "Scenes")
     usdz_path = os.path.join(scenes_dir, usdz_filename)
     create_usdz(flat_path, usdz_path)
+    shutil.rmtree(staging_dir, ignore_errors=True)
     usdz_size = os.path.getsize(usdz_path) / (1024 * 1024)
     log.append(f"USDZ: {usdz_path} ({usdz_size:.2f} MB)")
 
@@ -95,6 +99,7 @@ def run_pipeline(
     except ImportError:
         houdini_version = "unknown"
 
+    elapsed = time.time() - t0
     manifest_data = ManifestData(
         shot_name=shot_name,
         houdini_version=houdini_version,
@@ -103,9 +108,10 @@ def run_pipeline(
         wrapper_path=wrapper_path,
         warnings=report.warnings,
         total_usdz_size_mb=usdz_size,
+        elapsed_seconds=elapsed,
     )
     write_manifest(manifest_path, manifest_data)
     log.append(f"Manifest: {manifest_path}")
 
-    log.append("=== PACKAGING COMPLETE ===")
+    log.append(f"=== PACKAGING COMPLETE ({elapsed:.1f}s) ===")
     return log

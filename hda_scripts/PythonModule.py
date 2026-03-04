@@ -6,6 +6,7 @@ All paths are relative to $HIP (the directory containing the .hip file).
 import os
 import shutil
 import sys
+import time
 import zipfile
 from datetime import datetime
 
@@ -80,8 +81,9 @@ def on_verify_clicked(kwargs):
         if not ok:
             hou.ui.displayMessage(msg, severity=hou.severityType.Error)
             return
-        hip_detail = " (unsaved changes)" if msg else ""
-        log.append(f"  [2/5] HIP file ............ PASS{hip_detail}")
+        log.append(f"  [2/5] HIP file ............ PASS")
+        if msg:
+            warnings.append(msg)
 
         # [3/5] Shot directory
         hip_dir = _get_hip_dir()
@@ -104,6 +106,12 @@ def on_verify_clicked(kwargs):
         input_node = node.inputs()[0] if node.inputs() else None
         if input_node:
             stage = input_node.stage()
+            if stage is None:
+                hou.ui.displayMessage(
+                    "Input node returned an empty stage. Check the LOP network.",
+                    severity=hou.severityType.Error,
+                )
+                return
             report = audit_stage(stage)
 
             audit_issues = []
@@ -186,6 +194,11 @@ def on_package_clicked(kwargs):
         if not ok:
             hou.ui.displayMessage(msg, severity=hou.severityType.Error)
             return
+        if msg:
+            if not hou.ui.displayConfirmation(msg + "\n\nContinue anyway?"):
+                return
+
+        t0 = time.time()
 
         log.append(f"Package — {shot_name}")
         log.append(SEP)
@@ -219,6 +232,12 @@ def on_package_clicked(kwargs):
             return
 
         stage = input_node.stage()
+        if stage is None:
+            hou.ui.displayMessage(
+                "Input node returned an empty stage. Check the LOP network.",
+                severity=hou.severityType.Error,
+            )
+            return
 
         # 5. Audit
         report = audit_stage(stage)
@@ -237,7 +256,14 @@ def on_package_clicked(kwargs):
         usdz_filename = node.parm("usdz_filename").eval()
         usdz_path = os.path.join(scenes_dir, usdz_filename)
 
+        if os.path.exists(usdz_path):
+            if not hou.ui.displayConfirmation(
+                f"USDZ already exists:\n{usdz_path}\n\nOverwrite?"
+            ):
+                return
+
         create_usdz(flat_path, usdz_path)
+        shutil.rmtree(staging_dir, ignore_errors=True)
         usdz_size = os.path.getsize(usdz_path) / (1024 * 1024)
         log.append(f"  [6/8] Creating USDZ ....... {usdz_size:.2f} MB")
 
@@ -251,6 +277,7 @@ def on_package_clicked(kwargs):
         # 9. Write manifest
         manifest_path = os.path.join(shot_dir, f"{shot_name}_manifest.txt")
 
+        elapsed = time.time() - t0
         manifest_data = ManifestData(
             shot_name=shot_name,
             houdini_version=hou.applicationVersionString(),
@@ -259,6 +286,7 @@ def on_package_clicked(kwargs):
             wrapper_path=wrapper_path,
             warnings=report.warnings,
             total_usdz_size_mb=usdz_size,
+            elapsed_seconds=elapsed,
         )
         write_manifest(manifest_path, manifest_data)
         log.append(f"  [8/8] Writing manifest .... DONE")
@@ -277,6 +305,20 @@ def on_package_clicked(kwargs):
         log.append(f"    USDZ:     {usdz_path}")
         log.append(f"    Wrapper:  {wrapper_path}")
         log.append(f"    Manifest: {manifest_path}")
+
+        log.append(f"  Elapsed: {elapsed:.1f}s")
+
+        # Disk space check
+        total, used, free = shutil.disk_usage(shot_dir)
+        free_mb = free / (1024 * 1024)
+        pct = (free / total) * 100 if total else 0
+        if free < 100 * 1024 * 1024 or pct < 1.0:
+            hou.ui.displayMessage(
+                f"Low disk space warning: {free_mb:.0f} MB remaining "
+                f"({pct:.1f}% free). Packaging has duplicated scene data. "
+                "Consider freeing space before rendering.",
+                severity=hou.severityType.Warning,
+            )
 
         log.append("")
         log.append(SEP)
@@ -305,8 +347,13 @@ def on_get_from_rop_clicked(kwargs):
                 node.parm("frame_start").set(start)
                 node.parm("frame_end").set(end)
                 return
-            except Exception:
-                pass
+            except Exception as e:
+                hou.ui.displayMessage(
+                    f"Found ROP at {output.path()} but couldn't read "
+                    f"frame range: {e}",
+                    severity=hou.severityType.Warning,
+                )
+                return
 
     hou.ui.displayMessage(
         "No Karma ROP found downstream. Connect this node before a Karma ROP.",

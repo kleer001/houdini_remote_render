@@ -80,11 +80,8 @@ def get_hip_dir() -> str:
     return Path(hip_path).parent.as_posix()
 
 
-def check_path_length(path: str, limit: int = 240) -> str | None:
-    """Return a warning string if path exceeds limit, else None.
-
-    Windows has a 260-char path limit. We warn at 240 to leave headroom.
-    """
-    if len(path) > limit:
-        return f"Path length {len(path)} exceeds {limit} chars: {path}"
-    return None
+def check_disk_space(path: str) -> tuple[int, int, int]:
+    """Return (total, used, free) disk space in bytes for the filesystem containing path."""
+    import shutil
+    usage = shutil.disk_usage(path)
+    return (usage.total, usage.used, usage.free)

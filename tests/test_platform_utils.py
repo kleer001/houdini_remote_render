@@ -4,7 +4,7 @@ import os
 import tempfile
 import pytest
 
-from src.platform_utils import normalize_path, path_join, ensure_dir, check_path_length
+from src.platform_utils import normalize_path, path_join, ensure_dir, check_disk_space
 
 
 class TestNormalizePath:
@@ -46,15 +46,22 @@ class TestEnsureDir:
             assert os.path.isfile(os.path.join(target, ".placeholder"))
 
 
-class TestCheckPathLength:
-    def test_short_path_ok(self):
-        assert check_path_length("/tmp/foo") is None
+class TestCheckDiskSpace:
+    def test_returns_three_ints(self):
+        total, used, free = check_disk_space("/tmp")
+        assert isinstance(total, int)
+        assert isinstance(used, int)
+        assert isinstance(free, int)
 
-    def test_long_path_warns(self):
-        long_path = "/tmp/" + "a" * 250
-        result = check_path_length(long_path)
-        assert result is not None
-        assert "exceeds" in result
+    def test_values_are_positive(self):
+        total, used, free = check_disk_space("/tmp")
+        assert total > 0
+        assert used > 0
+        assert free > 0
+
+    def test_total_equals_used_plus_free(self):
+        total, used, free = check_disk_space("/tmp")
+        assert total == used + free
 
 
 @pytest.mark.houdini
