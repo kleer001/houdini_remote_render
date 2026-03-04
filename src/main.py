@@ -87,8 +87,7 @@ def run_pipeline(
     log.append(f"Wrapper: {wrapper_path}")
 
     # 7. Manifest
-    scripts_dir = os.path.join(shot_dir, "Scripts")
-    manifest_path = os.path.join(scripts_dir, f"{shot_name}_manifest.txt")
+    manifest_path = os.path.join(shot_dir, f"{shot_name}_manifest.txt")
 
     try:
         import hou

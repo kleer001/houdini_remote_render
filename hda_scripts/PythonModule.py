@@ -249,8 +249,7 @@ def on_package_clicked(kwargs):
         log.append(f"  [7/8] Writing wrapper ..... DONE")
 
         # 9. Write manifest
-        scripts_dir = os.path.join(shot_dir, "Scripts")
-        manifest_path = os.path.join(scripts_dir, f"{shot_name}_manifest.txt")
+        manifest_path = os.path.join(shot_dir, f"{shot_name}_manifest.txt")
 
         manifest_data = ManifestData(
             shot_name=shot_name,
