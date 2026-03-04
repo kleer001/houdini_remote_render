@@ -4,10 +4,6 @@ Creates a lightweight USD file that sublayers the USDZ archive and
 overrides asset paths to point to local cache files.
 """
 
-import os
-from pathlib import Path
-
-
 def write_wrapper(
     usdz_relative_path: str,
     cache_path_map: dict[str, str],

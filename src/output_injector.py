@@ -4,9 +4,6 @@ Finds all RenderProduct prims and sets their productName to write into
 the specified output directory.
 """
 
-from pathlib import Path
-
-
 def inject_output_paths(stage, output_dir_relative: str = "../Output") -> list[str]:
     """Set RenderProduct output paths to the given relative directory.
 

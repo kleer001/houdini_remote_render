@@ -87,9 +87,6 @@ houdini_remote_render/
 --- Shot Info --------------------------------------------------
 Shot Name          string    default: "SHOT_NAME_HERE"
                              Python callback: flag red bg if value == default or empty
-Shot Root          string    default: ""  locked=True
-                             Expression: python: get_shot_root()
-                             (derived from $HIP, two dirname() levels up)
 --- Output Files -----------------------------------------------
 USDZ Filename      string    default: $shotname.usdz  (expression-driven)
 Wrapper Filename   string    default: $shotname.usda  (expression-driven)
@@ -126,9 +123,10 @@ Implement:
   Wraps `os.path.join()` but returns posix-style string.
 - `ensure_dir(path: str) -> None`  
   `os.makedirs(path, exist_ok=True)`
-- `get_shot_root_from_hip() -> str`  
-  `Path(hou.hipFile.path()).parent.parent.as_posix()`  
+- `get_hip_dir() -> str`
+  `Path(hou.hipFile.path()).parent.as_posix()`
   Guard: if `hou.hipFile.path()` ends in `untitled.hip`, raise a descriptive error asking user to save first.
+  All shot directories are created at `$HIP/{shot_name}/` (e.g. `$HIP/shot_001/Output/`).
 
 **OS Notes:**
 - Never use string concatenation for paths. Always `os.path.join` or `pathlib.Path`.
@@ -148,8 +146,9 @@ Implement:
   Fail if `hou.hipFile.hasUnsavedChanges()` — warn but do not block.  
   Fail hard if hip path contains `untitled`.
 - `validate_shot_structure(shot_root: str) -> tuple[bool, str]`  
-  Check that `Output/`, `Cache/`, `Scenes/`, `Scripts/` all exist under shot_root.  
-  If missing, offer to create them (return list of missing dirs so caller can prompt user).
+  Check that `Output/`, `Textures/`, `Cache/`, `Scenes/`, `Scripts/` all exist under shot directory.
+  If missing, return list of missing dirs so caller can prompt user.
+  Each directory gets a `.placeholder` file for Google Drive sync compatibility.
 - `validate_rop_connection(node) -> tuple[bool, str]`  
   Walk node outputs to find a connected Karma ROP. Warn if none found but do not block — user may be running standalone.
 
@@ -267,9 +266,10 @@ Implement:
 **Purpose:** Flatten the stage and create the USDZ archive.
 
 Implement:
-- `flatten_stage(stage) -> Usd.Stage`  
-  Use `stage.Flatten()` — returns a new in-memory stage with no sublayer references.  
-  Export to a temp `.usda` file in the staging directory.
+- `flatten_stage(stage, staging_dir) -> str`
+  Use `stage.Flatten()` — returns an `Sdf.Layer` (not a `Usd.Stage`).
+  Export to a temp `.usda` file in the staging directory via `layer.Export()`.
+  Returns the path to the flattened file.
 - `create_usdz(flattened_usda: str, texture_staging_dir: str, output_usdz: str, dry_run: bool = False) -> list[str]`  
   Use `UsdUtils.CreateNewUsdzPackage(flattened_usda, output_usdz)`.  
   Use the non-ARKit variant — do not call `UsdUtils.CreateNewARKitUsdzPackage`.  
@@ -331,7 +331,6 @@ Implement:
 **Purpose:** Entry points called by HDA parameter callbacks and buttons.
 
 Implement these functions (called by HDA button parameters):
-- `get_shot_root()` — called by Shot Root expression parameter
 - `on_shot_name_changed(kwargs)` — parameter callback, drives field color
 - `on_verify_clicked(kwargs)` — dry-run pipeline, populate log
 - `on_package_clicked(kwargs)` — full pipeline run, populate log
@@ -442,8 +441,9 @@ all_layers, all_assets, unresolved = UsdUtils.ComputeAllDependencies(path)
 # Path rewriting
 UsdUtils.ModifyAssetPaths(layer, path_fn)
 
-# Flattening
-flat_stage = stage.Flatten()
+# Flattening (returns Sdf.Layer, not Usd.Stage)
+flat_layer = stage.Flatten()
+flat_layer.Export("/path/to/output.usda")
 
 # USDZ packaging (non-ARKit)
 UsdUtils.CreateNewUsdzPackage(input_usda, output_usdz)

@@ -85,8 +85,9 @@ class TestValidateRopConnection:
     def test_returns_tuple(self):
         import hou
         from src.validator import validate_rop_connection
-        # Use a node from the current scene
-        node = hou.node("/obj/Test_Scene__Cornell_Box/karmarendersettings")
-        if node:
+        # Find any LOP node in the current scene to test with
+        stage_node = hou.node("/stage")
+        if stage_node and stage_node.children():
+            node = stage_node.children()[0]
             ok, msg = validate_rop_connection(node)
             assert isinstance(ok, bool)
