@@ -28,10 +28,11 @@ The HDA is a pass-through node — it doesn't modify your live stage. Drop it be
 3. Click **Verify** to dry-run and check for issues
 4. Click **Package & Stage** to produce the USDZ, wrapper, and manifest
 
-Output goes into your shot's directory structure:
+Output goes into `$HIP/{shot_name}/`:
 - `Scenes/` — USDZ + wrapper
 - `Scripts/` — manifest
 - `Output/` — render output (set by the injector)
+- `Textures/` — converted textures
 - `Cache/` — external caches (VDB, bgeo.sc, Alembic)
 
 ## License
