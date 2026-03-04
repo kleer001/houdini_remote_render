@@ -49,6 +49,8 @@ def on_verify_clicked(kwargs):
     node = kwargs["node"]
     _ensure_src_path(node)
     log = []
+    warnings = []
+    has_failure = False
 
     try:
         from src.validator import (
@@ -58,54 +60,90 @@ def on_verify_clicked(kwargs):
         from src.auditor import audit_stage
 
         shot_name = node.parm("shot_name").eval()
+        SEP = "=" * 48
 
-        # Validate shot name
+        log.append(f"Verify — {shot_name}")
+        log.append(SEP)
+        log.append("")
+
+        # [1/5] Shot name
         ok, msg = validate_shot_name(shot_name)
         if not ok:
             hou.ui.displayMessage(msg, severity=hou.severityType.Error)
             return
-        log.append(f"Shot name: {shot_name} [OK]")
+        log.append(f"  [1/5] Shot name ........... PASS")
 
-        # Validate HIP file
+        # [2/5] HIP file
         ok, msg = validate_hip_saved()
         if not ok:
             hou.ui.displayMessage(msg, severity=hou.severityType.Error)
             return
-        if msg:
-            log.append(f"  {msg}")
-        log.append("HIP file saved [OK]")
+        hip_detail = " (unsaved changes)" if msg else ""
+        log.append(f"  [2/5] HIP file ............ PASS{hip_detail}")
 
-        # Report on shot directories ($HIP/shot_name/)
+        # [3/5] Shot directory
         hip_dir = _get_hip_dir()
         shot_dir = os.path.join(hip_dir, shot_name)
-        log.append(f"Shot directory: {shot_dir}")
         ok, msg = validate_shot_structure(shot_dir)
         if not ok:
-            log.append(f"  (will be created by Package & Stage)")
+            log.append(f"  [3/5] Shot directory ...... WILL CREATE")
         else:
-            log.append(f"  Directories: [OK]")
+            log.append(f"  [3/5] Shot directory ...... PASS")
 
-        # Check ROP connection
+        # [4/5] Karma ROP
         ok, msg = validate_rop_connection(node)
-        if msg:
-            log.append(f"  {msg}")
+        if ok:
+            log.append(f"  [4/5] Karma ROP ........... PASS")
+        else:
+            log.append(f"  [4/5] Karma ROP ........... WARN (not connected)")
+            warnings.append("No Karma ROP found downstream")
 
-        # Audit stage
+        # [5/5] Stage audit
         input_node = node.inputs()[0] if node.inputs() else None
         if input_node:
             stage = input_node.stage()
             report = audit_stage(stage)
-            log.append(f"Render settings: {'found' if report.has_render_settings else 'MISSING'}")
-            log.append(f"Camera: {'found' if report.has_camera else 'MISSING'}")
-            log.append(f"Render products: {'found' if report.has_render_products else 'MISSING'}")
-            log.append(f"Instance count: {report.instance_count:,}")
-            for w in report.warnings:
-                log.append(f"  ! {w}")
-        else:
-            log.append("! No input connected — cannot audit stage")
 
+            audit_issues = []
+            if not report.has_render_settings:
+                audit_issues.append("render settings missing (will be created)")
+            if not report.has_camera:
+                audit_issues.append("no camera found")
+            if not report.has_render_products:
+                audit_issues.append("no render products found")
+
+            if audit_issues:
+                log.append(f"  [5/5] Stage audit ......... WARN")
+            else:
+                log.append(f"  [5/5] Stage audit ......... PASS")
+
+            log.append(f"        Render settings       {'found' if report.has_render_settings else 'MISSING (will create)'}")
+            log.append(f"        Camera                {'found' if report.has_camera else 'MISSING'}")
+            log.append(f"        Render products       {'found' if report.has_render_products else 'MISSING'}")
+            log.append(f"        Instances             {report.instance_count:,}")
+
+            warnings.extend(report.warnings)
+            warnings.extend(audit_issues)
+        else:
+            log.append(f"  [5/5] Stage audit ......... FAIL (no input)")
+            has_failure = True
+
+        # Warnings section
+        if warnings:
+            log.append("")
+            log.append("  Warnings:")
+            for w in warnings:
+                log.append(f"    ! {w}")
+
+        # Final status
         log.append("")
-        log.append("=== VERIFY COMPLETE (dry run) ===")
+        log.append(SEP)
+        if has_failure:
+            log.append("ISSUES FOUND — see above before packaging.")
+        elif warnings:
+            log.append("READY TO GO — review warnings above.")
+        else:
+            log.append("All checks passed. READY TO GO.")
 
     except Exception as e:
         log.append(f"ERROR: {e}")
@@ -134,6 +172,7 @@ def on_package_clicked(kwargs):
         from src.platform_utils import ensure_dir
 
         shot_name = node.parm("shot_name").eval()
+        SEP = "=" * 48
 
         # 1. Validate
         ok, msg = validate_shot_name(shot_name)
@@ -146,14 +185,17 @@ def on_package_clicked(kwargs):
             hou.ui.displayMessage(msg, severity=hou.severityType.Error)
             return
 
+        log.append(f"Package — {shot_name}")
+        log.append(SEP)
+        log.append("")
+        log.append(f"  [1/7] Validating .......... PASS")
+
         # 2. Create shot directories at $HIP/shot_name/
         hip_dir = _get_hip_dir()
         shot_dir = os.path.join(hip_dir, shot_name)
         for d in ("Output", "Textures", "Cache", "Scenes", "Scripts"):
             ensure_dir(os.path.join(shot_dir, d))
-
-        log.append(f"Shot: {shot_name}")
-        log.append(f"Shot dir: {shot_dir}")
+        log.append(f"  [2/7] Creating dirs ....... DONE")
 
         # 3. Get stage from input
         input_node = node.inputs()[0] if node.inputs() else None
@@ -165,22 +207,19 @@ def on_package_clicked(kwargs):
             return
 
         stage = input_node.stage()
-        log.append("Stage acquired from input")
 
         # 4. Audit
         report = audit_stage(stage)
         ensure_render_settings(stage)
-        for w in report.warnings:
-            log.append(f"  ! {w}")
+        log.append(f"  [3/7] Auditing stage ...... PASS")
 
         # 5. Inject output paths
         inject_output_paths(stage)
-        log.append("Output paths injected")
+        log.append(f"  [4/7] Injecting paths ..... DONE")
 
         # 6. Flatten and create USDZ
         staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
         flat_path = flatten_stage(stage, staging_dir)
-        log.append(f"Stage flattened")
 
         scenes_dir = os.path.join(shot_dir, "Scenes")
         usdz_filename = node.parm("usdz_filename").eval()
@@ -188,14 +227,14 @@ def on_package_clicked(kwargs):
 
         create_usdz(flat_path, usdz_path)
         usdz_size = os.path.getsize(usdz_path) / (1024 * 1024)
-        log.append(f"USDZ created: {usdz_path} ({usdz_size:.2f} MB)")
+        log.append(f"  [5/7] Creating USDZ ....... {usdz_size:.2f} MB")
 
         # 7. Write wrapper
         wrapper_filename = node.parm("wrapper_filename").eval()
         wrapper_path = os.path.join(scenes_dir, wrapper_filename)
 
         write_wrapper(usdz_filename, {}, wrapper_path)
-        log.append(f"Wrapper written: {wrapper_path}")
+        log.append(f"  [6/7] Writing wrapper ..... DONE")
 
         # 8. Write manifest
         scripts_dir = os.path.join(shot_dir, "Scripts")
@@ -211,13 +250,29 @@ def on_package_clicked(kwargs):
             total_usdz_size_mb=usdz_size,
         )
         write_manifest(manifest_path, manifest_data)
-        log.append(f"Manifest written: {manifest_path}")
+        log.append(f"  [7/7] Writing manifest .... DONE")
+
+        # Warnings
+        if report.warnings:
+            log.append("")
+            log.append("  Warnings:")
+            for w in report.warnings:
+                log.append(f"    ! {w}")
+
+        # Output summary
+        log.append("")
+        log.append("  Output:")
+        log.append(f"    USDZ:     {usdz_path}")
+        log.append(f"    Wrapper:  {wrapper_path}")
+        log.append(f"    Manifest: {manifest_path}")
 
         log.append("")
-        log.append("=== PACKAGING COMPLETE ===")
+        log.append(SEP)
+        log.append("PACKAGING COMPLETE.")
 
     except Exception as e:
-        log.append(f"ERROR: {e}")
+        log.append("")
+        log.append(f"  ERROR: {e}")
         import traceback
         log.append(traceback.format_exc())
         hou.ui.displayMessage(str(e), severity=hou.severityType.Error)
