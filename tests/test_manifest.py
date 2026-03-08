@@ -35,6 +35,22 @@ class TestWriteManifest:
             assert "hero_shot" in content
             assert "21.0.631" in content
 
+    def test_includes_frame_range(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "manifest.txt")
+            data = ManifestData(
+                shot_name="test",
+                frame_start=1001,
+                frame_end=1100,
+            )
+            write_manifest(path, data)
+
+            with open(path) as f:
+                content = f.read()
+            assert "1001" in content
+            assert "1100" in content
+            assert "100" in content  # frame count
+
     def test_includes_textures(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "manifest.txt")

@@ -29,11 +29,24 @@ The HDA is a pass-through node — it doesn't modify your live stage. Drop it be
 4. Click **Package & Stage** to produce the USDZ, wrapper, and manifest
 
 Output goes into `$HIP/{shot_name}/`:
-- `Output/` — render output (paths injected by the packager)
+- `Output/` — rendered frames (e.g. `SHOT.1001.png`)
 - `Textures/` — converted textures
 - `Cache/` — external caches (VDB, bgeo.sc, Alembic)
 - `Scenes/` — USDZ archive + `.usda` wrapper
 - `Scripts/` — manifest
+
+### Output Format
+
+The **Output Format** menu (Options tab) controls the rendered image format:
+
+- **PNG** (default) — smaller files, viewable everywhere
+- **OpenEXR** — preserves HDR data and multiple AOVs for compositing
+
+If Verify detects extra AOVs beyond the beauty pass, the format auto-switches to EXR since PNG can only store a single image layer.
+
+### Frame Numbering
+
+Rendered filenames use the pattern `{shot_name}.<F4>.{ext}` (e.g. `TNIS0012.1203.exr`). The `<F4>` token is a husk-native frame variable — it gets expanded to the zero-padded frame number at render time. This works with both `husk` (direct) and `hbatch` (farm) workflows.
 
 ## Pipeline Modules
 
@@ -44,7 +57,7 @@ Output goes into `$HIP/{shot_name}/`:
 | `classifier` | Dependency scanning and UDIM detection |
 | `converter` | Texture conversion via `imaketx` |
 | `gatherer` | File copying and USD path rewriting |
-| `output_injector` | RenderProduct output path authoring |
+| `output_injector` | RenderProduct output path authoring (format + frame tokens) |
 | `packager` | Stage flatten + USDZ creation |
 | `wrapper_writer` | Thin `.usda` wrapper with cache references |
 | `manifest` | Human-readable packaging report |

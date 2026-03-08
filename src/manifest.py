@@ -16,6 +16,8 @@ class ManifestData:
     shot_name: str = ""
     houdini_version: str = ""
     generated_at: str = ""
+    frame_start: int = 1
+    frame_end: int = 1
     usdz_path: str = ""
     wrapper_path: str = ""
     textures_converted: list[tuple[str, str]] = field(default_factory=list)
@@ -44,6 +46,12 @@ def write_manifest(output_path: str, data: ManifestData) -> None:
         f"Houdini Version:  {data.houdini_version}",
         f"Generated:        {data.generated_at}",
         f"Elapsed:          {data.elapsed_seconds:.1f}s",
+        f"",
+        f"Frame Range",
+        f"{'-' * 50}",
+        f"Start:   {data.frame_start}",
+        f"End:     {data.frame_end}",
+        f"Frames:  {data.frame_end - data.frame_start + 1}",
         f"",
         f"Output Files",
         f"{'-' * 50}",

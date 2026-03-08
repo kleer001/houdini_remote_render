@@ -15,10 +15,14 @@ class TestOutputInjector:
         stage = Usd.Stage.Open(
             "/home/menser/Dropbox/ai/code/houdini_remote_render/tests/minimal_test_scene.usda"
         )
-        modified = inject_output_paths(stage, "../Output")
+        modified = inject_output_paths(stage, "test_shot", "../Output")
 
         assert len(modified) > 0
         assert "/Render/Products/beauty" in modified
+
+        prim = stage.GetPrimAtPath("/Render/Products/beauty")
+        val = prim.GetAttribute("productName").Get()
+        assert "test_shot.<F4>.png" in val
 
     def test_custom_output_dir(self):
         from pxr import Usd
@@ -27,12 +31,13 @@ class TestOutputInjector:
         stage = Usd.Stage.Open(
             "/home/menser/Dropbox/ai/code/houdini_remote_render/tests/minimal_test_scene.usda"
         )
-        inject_output_paths(stage, "../Renders")
+        inject_output_paths(stage, "test_shot", "../Renders")
 
         prim = stage.GetPrimAtPath("/Render/Products/beauty")
         attr = prim.GetAttribute("productName")
         val = attr.Get()
         assert "../Renders" in val
+        assert "test_shot.<F4>.png" in val
 
 
 class TestFlattenStage:

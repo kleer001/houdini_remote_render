@@ -24,6 +24,9 @@ def run_pipeline(
     stage,
     shot_name: str,
     hip_dir: str,
+    frame_start: int = 1,
+    frame_end: int = 1,
+    output_format: str = "png",
     usdz_filename: str | None = None,
     wrapper_filename: str | None = None,
     dry_run: bool = False,
@@ -34,6 +37,9 @@ def run_pipeline(
         stage: A Usd.Stage from a LOP network.
         shot_name: Name of the shot.
         hip_dir: Directory containing the .hip file ($HIP).
+        frame_start: First frame to render.
+        frame_end: Last frame to render.
+        output_format: Image format — "png" or "exr".
         usdz_filename: Override USDZ filename (default: {shot_name}.usdz).
         wrapper_filename: Override wrapper filename (default: {shot_name}.usda).
         dry_run: If True, only validate and audit without producing files.
@@ -71,8 +77,8 @@ def run_pipeline(
         ensure_dir(os.path.join(shot_dir, d))
 
     # 4. Inject output paths
-    inject_output_paths(stage)
-    log.append("Output paths injected")
+    inject_output_paths(stage, shot_name, output_format=output_format)
+    log.append(f"Output paths injected (format: {output_format})")
 
     # 5. Flatten & USDZ
     staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
@@ -104,6 +110,8 @@ def run_pipeline(
         shot_name=shot_name,
         houdini_version=houdini_version,
         generated_at=datetime.now().isoformat(),
+        frame_start=frame_start,
+        frame_end=frame_end,
         usdz_path=usdz_path,
         wrapper_path=wrapper_path,
         warnings=report.warnings,

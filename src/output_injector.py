@@ -4,15 +4,25 @@ Finds all RenderProduct prims and sets their productName to write into
 the specified output directory.
 """
 
-def inject_output_paths(stage, output_dir_relative: str = "../Output") -> list[str]:
+def inject_output_paths(stage, shot_name: str, output_dir_relative: str = "../Output", output_format: str = "png") -> list[str]:
     """Set RenderProduct output paths to the given relative directory.
 
     Finds all RenderProduct prims and authors productName as:
-        {output_dir_relative}/{product_name}.$F4.exr
+        {output_dir_relative}/{shot_name}.<F4>.{ext}
+
+    The <F4> token is a husk-native frame variable (UDIM-style) that husk
+    expands to the zero-padded frame number at render time.  Unlike $F4,
+    which Houdini's expression engine would evaluate (and consume) before
+    the value reaches husk, <F4> is stored as a literal string in USD and
+    only expanded by husk itself.  This is required for multi-frame
+    renders — husk refuses to render an animation when productName has no
+    frame variable ("Output file should have variables").
 
     Args:
         stage: A Usd.Stage to modify.
+        shot_name: Shot name to prefix output filenames with.
         output_dir_relative: Relative directory for output files.
+        output_format: Image format — "png" or "exr".
 
     Returns:
         List of prim paths that were modified.
@@ -27,7 +37,8 @@ def inject_output_paths(stage, output_dir_relative: str = "../Output") -> list[s
             continue
 
         prim_name = prim.GetName()
-        new_path = f"{output_dir_relative}/{prim_name}.$F4.exr"
+        ext = output_format if output_format in ("png", "exr") else "png"
+        new_path = f"{output_dir_relative}/{shot_name}.<F4>.{ext}"
 
         # Author via Sdf so it survives flatten
         prim_spec = root_layer.GetPrimAtPath(prim.GetPath())
