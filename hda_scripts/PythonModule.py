@@ -591,16 +591,19 @@ def on_package_clicked(kwargs):
 
         # 6. Inject output paths
         output_format = node.parm("output_format").evalAsString()
-        inject_output_paths(stage, shot_name, output_format=output_format)
+        frame_start = int(node.parm("frame_start").eval())
+        frame_end = int(node.parm("frame_end").eval())
+        inject_output_paths(
+            stage, shot_name,
+            output_format=output_format,
+            frame_start=frame_start,
+            frame_end=frame_end,
+        )
         log.append(f"  [5/8] Injecting paths ..... DONE")
 
         # 7. Flatten and bake Houdini-internal paths
         staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
         flat_path = flatten_stage(stage, staging_dir)
-
-        bake_dir = os.path.join(staging_dir, "baked")
-        frame_start = int(node.parm("frame_start").eval())
-        frame_end = int(node.parm("frame_end").eval())
         baked, failed = _bake_houdini_paths(
             flat_path, bake_dir, frame_range=(frame_start, frame_end)
         )
@@ -635,6 +638,15 @@ def on_package_clicked(kwargs):
 
         write_wrapper(usdz_filename, {}, wrapper_path)
         log.append(f"  [7/8] Writing wrapper ..... DONE")
+
+        # 8b. Write render_info.txt for farm scripts
+        render_info_path = os.path.join(scenes_dir, "render_info.txt")
+        frame_count = frame_end - frame_start + 1
+        with open(render_info_path, "w") as f:
+            f.write(f"startframe={frame_start}\n")
+            f.write(f"endframe={frame_end}\n")
+            f.write(f"framecount={frame_count}\n")
+            f.write(f"usdfile={wrapper_filename}\n")
 
         # 9. Write manifest
         manifest_path = os.path.join(shot_dir, f"{shot_name}_manifest.txt")

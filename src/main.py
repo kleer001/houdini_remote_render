@@ -77,8 +77,13 @@ def run_pipeline(
         ensure_dir(os.path.join(shot_dir, d))
 
     # 4. Inject output paths
-    inject_output_paths(stage, shot_name, output_format=output_format)
-    log.append(f"Output paths injected (format: {output_format})")
+    inject_output_paths(
+        stage, shot_name,
+        output_format=output_format,
+        frame_start=frame_start,
+        frame_end=frame_end,
+    )
+    log.append(f"Output paths injected (format: {output_format}, frames: {frame_start}-{frame_end})")
 
     # 5. Flatten & USDZ
     staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
@@ -95,6 +100,16 @@ def run_pipeline(
     wrapper_path = os.path.join(scenes_dir, wrapper_filename)
     write_wrapper(usdz_filename, {}, wrapper_path)
     log.append(f"Wrapper: {wrapper_path}")
+
+    # 6b. Write render_info.txt for farm scripts
+    render_info_path = os.path.join(scenes_dir, "render_info.txt")
+    frame_count = frame_end - frame_start + 1
+    with open(render_info_path, "w") as f:
+        f.write(f"startframe={frame_start}\n")
+        f.write(f"endframe={frame_end}\n")
+        f.write(f"framecount={frame_count}\n")
+        f.write(f"usdfile={wrapper_filename}\n")
+    log.append(f"Render info: {render_info_path}")
 
     # 7. Manifest
     manifest_path = os.path.join(shot_dir, f"{shot_name}_manifest.txt")

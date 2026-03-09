@@ -4,8 +4,15 @@ Finds all RenderProduct prims and sets their productName to write into
 the specified output directory.
 """
 
-def inject_output_paths(stage, shot_name: str, output_dir_relative: str = "../Output", output_format: str = "png") -> list[str]:
-    """Set RenderProduct output paths to the given relative directory.
+def inject_output_paths(
+    stage,
+    shot_name: str,
+    output_dir_relative: str = "../Output",
+    output_format: str = "png",
+    frame_start: int | None = None,
+    frame_end: int | None = None,
+) -> list[str]:
+    """Set RenderProduct output paths and stage time codes.
 
     Finds all RenderProduct prims and authors productName as:
         {output_dir_relative}/{shot_name}.<F4>.{ext}
@@ -18,11 +25,17 @@ def inject_output_paths(stage, shot_name: str, output_dir_relative: str = "../Ou
     renders — husk refuses to render an animation when productName has no
     frame variable ("Output file should have variables").
 
+    When frame_start/frame_end are provided, authors startTimeCode and
+    endTimeCode on the stage root layer so render scripts can extract the
+    frame range directly from the USD file.
+
     Args:
         stage: A Usd.Stage to modify.
         shot_name: Shot name to prefix output filenames with.
         output_dir_relative: Relative directory for output files.
         output_format: Image format — "png" or "exr".
+        frame_start: First frame number (authored as startTimeCode).
+        frame_end: Last frame number (authored as endTimeCode).
 
     Returns:
         List of prim paths that were modified.
@@ -31,6 +44,12 @@ def inject_output_paths(stage, shot_name: str, output_dir_relative: str = "../Ou
 
     modified = []
     root_layer = stage.GetRootLayer()
+
+    # Author frame range so render scripts can read it from the USD
+    if frame_start is not None:
+        root_layer.startTimeCode = frame_start
+    if frame_end is not None:
+        root_layer.endTimeCode = frame_end
 
     for prim in stage.Traverse():
         if prim.GetTypeName() != "RenderProduct":
