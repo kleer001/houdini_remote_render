@@ -1,0 +1,91 @@
+"""Tests for cache_script_writer module."""
+
+import os
+import stat
+import tempfile
+
+from src.cache_script_writer import write_cache_script
+
+
+class TestWriteCacheScript:
+    def test_writes_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_cache.sh")
+            write_cache_script(
+                output_path=path,
+                shot_name="test_shot",
+                hip_filename="test_shot.hip",
+                cache_node_path="/obj/geo1/filecache1",
+                frame_start=1001,
+                frame_end=1200,
+            )
+            assert os.path.isfile(path)
+
+    def test_is_executable(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_cache.sh")
+            write_cache_script(
+                output_path=path,
+                shot_name="test_shot",
+                hip_filename="test_shot.hip",
+                cache_node_path="/obj/geo1/filecache1",
+                frame_start=1001,
+                frame_end=1200,
+            )
+            st = os.stat(path)
+            assert st.st_mode & stat.S_IEXEC
+
+    def test_contains_hbatch_command(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_cache.sh")
+            write_cache_script(
+                output_path=path,
+                shot_name="explosion",
+                hip_filename="explosion.hip",
+                cache_node_path="/obj/geo1/filecache1",
+                frame_start=1001,
+                frame_end=1200,
+            )
+
+            with open(path) as f:
+                content = f.read()
+
+            assert "#!/bin/bash" in content
+            assert "hbatch" in content
+            assert "mread Scenes/explosion.hip" in content
+            assert "render -f 1001 1200 /obj/geo1/filecache1" in content
+            assert "quit" in content
+
+    def test_contains_shot_info(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_cache.sh")
+            write_cache_script(
+                output_path=path,
+                shot_name="my_sim",
+                hip_filename="my_sim.hip",
+                cache_node_path="/obj/geo1/fc1",
+                frame_start=1,
+                frame_end=240,
+            )
+
+            with open(path) as f:
+                content = f.read()
+
+            assert "my_sim" in content
+            assert "1-240" in content
+
+    def test_newline_format(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_cache.sh")
+            write_cache_script(
+                output_path=path,
+                shot_name="test",
+                hip_filename="test.hip",
+                cache_node_path="/obj/geo1/fc1",
+                frame_start=1,
+                frame_end=10,
+            )
+
+            with open(path, "rb") as f:
+                raw = f.read()
+            assert b"\r\n" not in raw

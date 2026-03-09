@@ -604,6 +604,7 @@ def on_package_clicked(kwargs):
         # 7. Flatten and bake Houdini-internal paths
         staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
         flat_path = flatten_stage(stage, staging_dir)
+        bake_dir = os.path.join(staging_dir, "baked")
         baked, failed = _bake_houdini_paths(
             flat_path, bake_dir, frame_range=(frame_start, frame_end)
         )
