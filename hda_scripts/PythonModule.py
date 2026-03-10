@@ -650,7 +650,7 @@ def on_package_clicked(kwargs):
             f.write(f"startframe={frame_start}\n")
             f.write(f"endframe={frame_end}\n")
             f.write(f"framecount={frame_count}\n")
-            f.write(f"usdfile={wrapper_filename}\n")
+            f.write(f"usdfile=Scenes/{wrapper_filename}\n")
 
         # 9. Write manifest
         manifest_path = os.path.join(shot_dir, f"{shot_name}_manifest.txt")

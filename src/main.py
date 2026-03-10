@@ -108,7 +108,7 @@ def run_pipeline(
         f.write(f"startframe={frame_start}\n")
         f.write(f"endframe={frame_end}\n")
         f.write(f"framecount={frame_count}\n")
-        f.write(f"usdfile={wrapper_filename}\n")
+        f.write(f"usdfile=Scenes/{wrapper_filename}\n")
     log.append(f"Render info: {render_info_path}")
 
     # 7. Manifest
