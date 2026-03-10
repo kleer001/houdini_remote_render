@@ -103,6 +103,17 @@ python install.py --uninstall       # Remove
 
 </details>
 
+## Updating
+
+HDAs load directly from the cloned repo, so updating is just a `git pull`:
+
+```bash
+cd /path/to/houdini_remote_render
+git pull
+```
+
+Restart Houdini to pick up any changes.
+
 ## HDAs
 
 <details>
@@ -182,4 +193,4 @@ Remote packaging for Mantra and Redshift render jobs. Coming soon.
 
 ## License
 
-MIT
+[MIT](LICENSE)
