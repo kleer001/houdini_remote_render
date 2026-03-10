@@ -359,6 +359,7 @@ def on_shot_name_changed(kwargs):
     node = kwargs["node"]
     _ensure_src_path(node)
     node.parm("verified").set(0)
+    node.parm("log_output").set("")
 
     from src.validator import validate_shot_name
     name = node.parm("shot_name").eval()
@@ -368,8 +369,10 @@ def on_shot_name_changed(kwargs):
 
 
 def on_field_changed(kwargs):
-    """Reset verified state when shot info fields change."""
-    kwargs["node"].parm("verified").set(0)
+    """Reset verified state and clear log when shot info fields change."""
+    node = kwargs["node"]
+    node.parm("verified").set(0)
+    node.parm("log_output").set("")
 
 
 def on_verify_clicked(kwargs):
