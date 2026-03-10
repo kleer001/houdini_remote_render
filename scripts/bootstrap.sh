@@ -31,13 +31,64 @@ print_ok()   { echo -e "  ${GREEN}[OK]${NC} $1"; }
 print_warn() { echo -e "  ${YELLOW}[!!]${NC} $1"; }
 print_fail() { echo -e "  ${RED}[FAIL]${NC} $1"; }
 
+# Detect OS and package manager
+OS="$(uname -s)"
+DISTRO=""
+PKG_CMD=""
+
+case "$OS" in
+    Linux*)
+        if [ -f /etc/os-release ]; then
+            . /etc/os-release
+            DISTRO="$ID"
+        fi
+        if command -v apt-get &> /dev/null; then
+            PKG_CMD="sudo apt-get install -y"
+        elif command -v dnf &> /dev/null; then
+            PKG_CMD="sudo dnf install -y"
+        elif command -v pacman &> /dev/null; then
+            PKG_CMD="sudo pacman -S --noconfirm"
+        elif command -v zypper &> /dev/null; then
+            PKG_CMD="sudo zypper install -y"
+        fi
+        ;;
+    Darwin*)
+        DISTRO="macos"
+        ;;
+esac
+
 # --- Pre-flight checks ---
 
 print_banner "Houdini Remote Render & Cache — Installer"
 
 # Check for git
 if ! command -v git &> /dev/null; then
-    print_fail "git is not installed. Please install git first."
+    print_fail "git is not installed."
+    echo ""
+    case "$OS" in
+        Darwin*)
+            echo "  Install Xcode Command Line Tools (includes git):"
+            echo "    xcode-select --install"
+            echo ""
+            echo "  Or via Homebrew:"
+            echo "    brew install git"
+            ;;
+        Linux*)
+            if [ -n "$PKG_CMD" ]; then
+                echo "  Install with:"
+                echo "    $PKG_CMD git"
+            else
+                echo "  Install git using your distribution's package manager."
+                echo "  Common commands:"
+                echo "    Ubuntu/Debian:  sudo apt-get install -y git"
+                echo "    Fedora/RHEL:    sudo dnf install -y git"
+                echo "    Arch:           sudo pacman -S --noconfirm git"
+                echo "    openSUSE:       sudo zypper install -y git"
+            fi
+            ;;
+    esac
+    echo ""
+    echo "  Then re-run this script."
     exit 1
 fi
 print_ok "git found"
@@ -51,7 +102,34 @@ elif command -v python &> /dev/null; then
 fi
 
 if [ -z "$PYTHON" ]; then
-    print_fail "Python 3 is not installed. Please install Python 3.10+."
+    print_fail "Python 3 is not installed."
+    echo ""
+    case "$OS" in
+        Darwin*)
+            echo "  Install via Homebrew:"
+            echo "    brew install python@3"
+            echo ""
+            echo "  Or download from: https://www.python.org/downloads/"
+            ;;
+        Linux*)
+            if [ -n "$PKG_CMD" ]; then
+                echo "  Install with:"
+                echo "    $PKG_CMD python3"
+            else
+                echo "  Install python3 using your distribution's package manager."
+                echo "  Common commands:"
+                echo "    Ubuntu/Debian:  sudo apt-get install -y python3"
+                echo "    Fedora/RHEL:    sudo dnf install -y python3"
+                echo "    Arch:           sudo pacman -S --noconfirm python"
+                echo "    openSUSE:       sudo zypper install -y python3"
+            fi
+            ;;
+    esac
+    echo ""
+    echo "  Houdini also bundles Python 3 — if Houdini is installed, try:"
+    echo "    export PATH=\"\$HFS/python/bin:\$PATH\""
+    echo ""
+    echo "  Then re-run this script."
     exit 1
 fi
 
@@ -60,13 +138,31 @@ PY_VERSION=$($PYTHON --version 2>&1)
 # Verify it's Python 3
 if ! echo "$PY_VERSION" | grep -q "Python 3"; then
     print_fail "$PYTHON is $PY_VERSION, but Python 3.10+ is required."
+    echo ""
+    echo "  Your 'python' command points to Python 2."
+    case "$OS" in
+        Darwin*)
+            echo "  Install Python 3 via Homebrew:"
+            echo "    brew install python@3"
+            ;;
+        Linux*)
+            if [ -n "$PKG_CMD" ]; then
+                echo "  Install Python 3:"
+                echo "    $PKG_CMD python3"
+            else
+                echo "  Install python3 using your package manager."
+            fi
+            ;;
+    esac
+    echo ""
+    echo "  Then re-run this script."
     exit 1
 fi
 print_ok "Python found: $PY_VERSION"
 
 # Check for Houdini pref dirs
 HOUDINI_FOUND=false
-case "$(uname -s)" in
+case "$OS" in
     Linux*)
         for d in ~/houdini*/; do
             if [ -d "$d" ]; then
@@ -87,7 +183,25 @@ esac
 
 if [ "$HOUDINI_FOUND" = false ]; then
     print_fail "No Houdini preference directories found."
-    echo "  Is Houdini installed and has been launched at least once?"
+    echo ""
+    echo "  Houdini creates its preferences directory the first time it runs."
+    echo ""
+    case "$OS" in
+        Linux*)
+            echo "  Expected location: ~/houdini*/"
+            ;;
+        Darwin*)
+            echo "  Expected location: ~/Library/Preferences/houdini/*/"
+            ;;
+    esac
+    echo ""
+    echo "  If Houdini is installed but hasn't been launched yet:"
+    echo "    1. Launch Houdini once (it creates the preferences directory)"
+    echo "    2. Close Houdini"
+    echo "    3. Re-run this script"
+    echo ""
+    echo "  If Houdini is not installed:"
+    echo "    Download from https://www.sidefx.com/download/"
     exit 1
 fi
 print_ok "Houdini preferences found"

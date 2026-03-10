@@ -21,6 +21,13 @@ function Print-Ok($text)   { Write-Host "  [OK] $text" -ForegroundColor Green }
 function Print-Warn($text) { Write-Host "  [!!] $text" -ForegroundColor Yellow }
 function Print-Fail($text) { Write-Host "  [FAIL] $text" -ForegroundColor Red }
 
+# Check if winget is available (for install suggestions)
+$hasWinget = $false
+try {
+    winget --version 2>&1 | Out-Null
+    $hasWinget = $true
+} catch {}
+
 # --- Pre-flight checks ---
 
 Print-Banner "Houdini Remote Render & Cache — Installer"
@@ -30,8 +37,17 @@ try {
     $gitVersion = git --version 2>&1
     Print-Ok "git found: $gitVersion"
 } catch {
-    Print-Fail "git is not installed. Please install git first."
-    Print-Warn "Try: winget install Git.Git"
+    Print-Fail "git is not installed."
+    Write-Host ""
+    if ($hasWinget) {
+        Write-Host "  Install with winget (recommended):"
+        Write-Host "    winget install Git.Git" -ForegroundColor Yellow
+    } else {
+        Write-Host "  Download from:"
+        Write-Host "    https://git-scm.com/download/win" -ForegroundColor Yellow
+    }
+    Write-Host ""
+    Write-Host "  After installing, close and reopen PowerShell, then re-run this script."
     exit 1
 }
 
@@ -51,7 +67,25 @@ if (-not $python) {
         $python = "python3"
         Print-Ok "Python found: $pyVersion"
     } catch {
-        Print-Fail "Python 3 is not installed. Please install Python 3.10+."
+        Print-Fail "Python 3 is not installed."
+        Write-Host ""
+        if ($hasWinget) {
+            Write-Host "  Install with winget (recommended):"
+            Write-Host "    winget install Python.Python.3.12" -ForegroundColor Yellow
+        } else {
+            Write-Host "  Install from the Microsoft Store:"
+            Write-Host "    Search for 'Python 3.12' in the Microsoft Store app" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "  Or download from:"
+            Write-Host "    https://www.python.org/downloads/" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "  IMPORTANT: Check 'Add Python to PATH' during installation."
+        }
+        Write-Host ""
+        Write-Host "  Houdini also bundles Python 3 -- if Houdini is installed, try adding"
+        Write-Host "  its Python to your PATH (e.g. C:\Program Files\Side Effects Software\Houdini 21.0.631\python\bin)"
+        Write-Host ""
+        Write-Host "  After installing, close and reopen PowerShell, then re-run this script."
         exit 1
     }
 }
@@ -60,7 +94,17 @@ if (-not $python) {
 $houdiniDirs = Get-ChildItem "$env:USERPROFILE\Documents" -Directory -Filter "houdini*" -ErrorAction SilentlyContinue
 if (-not $houdiniDirs -or $houdiniDirs.Count -eq 0) {
     Print-Fail "No Houdini preference directories found."
-    Write-Host "  Is Houdini installed and has been launched at least once?"
+    Write-Host ""
+    Write-Host "  Houdini creates its preferences directory the first time it runs."
+    Write-Host "  Expected location: $env:USERPROFILE\Documents\houdini*\"
+    Write-Host ""
+    Write-Host "  If Houdini is installed but hasn't been launched yet:"
+    Write-Host "    1. Launch Houdini once (it creates the preferences directory)"
+    Write-Host "    2. Close Houdini"
+    Write-Host "    3. Re-run this script"
+    Write-Host ""
+    Write-Host "  If Houdini is not installed:"
+    Write-Host "    Download from https://www.sidefx.com/download/"
     exit 1
 }
 Print-Ok "Houdini preferences found ($($houdiniDirs.Count) version(s))"
