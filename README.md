@@ -10,7 +10,7 @@ Packages a Solaris/LOP stage into a self-contained USDZ archive for remote rende
 
 - **Context:** LOPs (Solaris)
 - **File:** `hda/karma_usd_packager.hdalc`
-- **Node color:** Teal
+- **Node color:** Deep red (X shape)
 
 Takes a LOP stage and produces:
 - A flattened `.usdz` archive with all textures bundled

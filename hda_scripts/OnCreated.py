@@ -29,13 +29,14 @@ def onCreate(kwargs):
                     output.setInput(0, node, 0)
                     break
 
-        # Set node color (teal)
-        node.setColor(hou.Color((0.2, 0.6, 0.8)))
+        # Set node color (deep red) and shape (X)
+        node.setColor(hou.Color((0.8, 0.1, 0.1)))
+        node.setUserData("nodeshape", "null")
 
         # Create network box
         netbox = parent.createNetworkBox()
         netbox.setComment("USD Packager")
-        netbox.setColor(hou.Color((0.2, 0.6, 0.8)))
+        netbox.setColor(hou.Color((0.8, 0.1, 0.1)))
         netbox.addNode(node)
         netbox.fitAroundContents()
 

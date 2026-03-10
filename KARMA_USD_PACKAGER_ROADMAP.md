@@ -67,7 +67,7 @@ houdini_remote_render/
 - **Context:** LOPs (Solaris)
 - **Type name:** `karma_usd_packager`
 - **Tab menu category:** `Rendering`
-- **Node color:** Distinct — RGB (0.2, 0.6, 0.8) teal
+- **Node color:** Distinct — RGB (0.8, 0.1, 0.1) deep red, X shape
 - **Network box:** Created by OnCreated script, wraps this node, same color, label "USD Packager"
 
 ### HDA License Tier

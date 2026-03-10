@@ -256,7 +256,7 @@ So `basedir` should be `$HIP/../Cache` to land in `{folder}/Cache/`.
 
 ## Open Decisions (noted, not blocking)
 
-1. **Color scheme** — teal is taken by render packager. Suggest orange (0.8, 0.5, 0.1) for cache/sim work.
+1. **Color scheme** — deep red is taken by render packager. Suggest orange (0.8, 0.5, 0.1) for cache/sim work.
 2. **Separate HDA file or same repo?** — Same repo makes sense, different `.hdalc` file: `hda/remote_file_cache.hdalc`
 3. **hbatch vs hython** — `hbatch` is standard for ROP cooking. `hython` is alternative but `hbatch` is more conventional.
 4. **Multiple File Cache support** — Deferred. Single cache per HDA instance for now. Artist can use multiple HDA instances.

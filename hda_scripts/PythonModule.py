@@ -684,6 +684,7 @@ def on_package_clicked(kwargs):
         log.append(f"    HIP zip:  {zip_path}")
         log.append(f"    USDZ:     {usdz_path}")
         log.append(f"    Wrapper:  {wrapper_path}")
+        log.append(f"    Info:     {render_info_path}")
         log.append(f"    Manifest: {manifest_path}")
 
         log.append(f"  Elapsed: {elapsed:.1f}s")

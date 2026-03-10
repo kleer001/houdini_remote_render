@@ -65,7 +65,7 @@ Both follow the same sequence: validate → audit → create dirs → inject out
 
 - `PythonModule.py` — all logic; `_ensure_src_path()` adds repo root to `sys.path` based on HDA library file location
 - `btn_verify.py` / `btn_package.py` — one-liners: `hou.phm().on_verify_clicked(kwargs)`
-- `OnCreated.py` — auto-wires node into LOP network, sets teal color, creates network box
+- `OnCreated.py` — auto-wires node into LOP network, sets deep red color and X shape, creates network box
 
 **Output structure:** `$HIP/{shot_name}_P{pod}T{team}_v{NNN}/` with subdirs: `Output/`, `Textures/`, `Cache/`, `Scenes/`, `Scripts/`. The manifest goes into the shot root, not `Scripts/`.
 

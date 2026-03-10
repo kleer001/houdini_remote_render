@@ -20,7 +20,7 @@ def onCreate(kwargs):
             sel = selected[0]
             node.setInput(0, sel, 0)
 
-        # Set node color (amber — distinct from teal render packager)
+        # Set node color (amber — distinct from deep red render packager)
         node.setColor(hou.Color((0.8, 0.5, 0.1)))
 
         # Create network box
