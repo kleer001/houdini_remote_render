@@ -76,15 +76,7 @@ cache_info.txt       — Machine-readable metadata
 {shot}_original.hip.zip — HIP backup
 ```
 
-## Requirements
-
-- Houdini 21.0+ (Indie or Commercial)
-- Python 3.10+ (Houdini-bundled)
-- Git (for automatic install)
-
 ## Installation
-
-### Automatic (recommended)
 
 **Linux / macOS:**
 ```bash
@@ -96,9 +88,23 @@ curl -fsSL https://raw.githubusercontent.com/kleer001/houdini_remote_render/main
 irm https://raw.githubusercontent.com/kleer001/houdini_remote_render/main/scripts/bootstrap.ps1 | iex
 ```
 
-This clones the repository, detects your Houdini installation(s), and registers the HDAs using Houdini's [package system](https://www.sidefx.com/docs/houdini/ref/plugins.html). No files are copied — HDAs are loaded directly from the repository.
+The script checks for prerequisites (git, Python 3, Houdini), clones the repo, and registers the HDAs using Houdini's [package system](https://www.sidefx.com/docs/houdini/ref/plugins.html). If anything is missing it tells you exactly what to install and how. No files are copied — HDAs are loaded directly from the repository.
 
-**If you already have the repository cloned:**
+Restart Houdini after installing. The HDAs appear in the Tab menu:
+- **Karma USD Packager** — any LOP network
+- **Remote File Cache** — any SOP network
+
+### Prerequisites
+
+The bootstrap script handles all of this, but if you're setting things up by hand:
+
+- **Houdini 21.0+** (Indie or Commercial) — must be launched at least once so the preferences directory exists
+- **Git** — [git-scm.com](https://git-scm.com/) or your OS package manager
+- **Python 3.10+** — your OS package manager, or Houdini's bundled Python (`$HFS/python/bin/python3`)
+
+### Managing an existing install
+
+If you already have the repository cloned:
 ```bash
 python install.py                   # Install for all Houdini versions
 python install.py --version 21.0    # Install for a specific version
@@ -106,14 +112,39 @@ python install.py --status          # Check install status
 python install.py --uninstall       # Remove
 ```
 
-### Manual
+<details>
+<summary>Manual installation (without the bootstrap script)</summary>
 
-If you prefer not to use the installer, you have two options:
+#### Step 1 — Clone the repository
 
-**Option A — Houdini package file (recommended):**
+```bash
+git clone https://github.com/kleer001/houdini_remote_render.git
+cd houdini_remote_render
+```
 
-Create a JSON file at `$HOUDINI_USER_PREF_DIR/packages/houdini_remote_render.json`:
+#### Step 2 — Register the HDAs
 
+You have two options. Pick one.
+
+**Option A — Run the installer (recommended):**
+
+```bash
+python install.py
+```
+
+This auto-detects all Houdini versions on your system and creates a package file for each one.
+
+**Option B — Create the package file by hand:**
+
+Create `houdini_remote_render.json` in your Houdini packages directory:
+
+| OS | Packages directory |
+|---|---|
+| **Linux** | `~/houdini21.0/packages/` |
+| **macOS** | `~/Library/Preferences/houdini/21.0/packages/` |
+| **Windows** | `%USERPROFILE%\Documents\houdini21.0\packages\` |
+
+Contents:
 ```json
 {
     "env": [
@@ -128,14 +159,9 @@ Create a JSON file at `$HOUDINI_USER_PREF_DIR/packages/houdini_remote_render.jso
 }
 ```
 
-Replace `/path/to/houdini_remote_render` with the actual path to this repository.
+Replace `/path/to/houdini_remote_render` with the actual path where you cloned the repo. Create the `packages/` directory if it doesn't exist.
 
-`$HOUDINI_USER_PREF_DIR` is:
-- **Linux:** `~/houdini21.0/`
-- **macOS:** `~/Library/Preferences/houdini/21.0/`
-- **Windows:** `%USERPROFILE%\Documents\houdini21.0\`
-
-**Option B — houdini.env:**
+**Alternative — houdini.env (not recommended):**
 
 Add to `$HOUDINI_USER_PREF_DIR/houdini.env`:
 
@@ -143,13 +169,13 @@ Add to `$HOUDINI_USER_PREF_DIR/houdini.env`:
 HOUDINI_OTLSCAN_PATH = /path/to/houdini_remote_render/hda:&
 ```
 
-The `:&` appends to the existing scan path rather than replacing it. On Windows use `;` instead of `:`.
+The `:&` appends to the existing scan path. On Windows use `;` instead of `:`.
 
-### After installation
+#### Step 3 — Restart Houdini
 
-Restart Houdini. The HDAs appear as:
-- **Karma USD Packager** — Tab menu in any LOP network
-- **Remote File Cache** — Tab menu in any SOP network
+The HDAs appear in the Tab menu after restarting.
+
+</details>
 
 ## Pipeline Modules
 
