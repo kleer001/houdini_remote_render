@@ -5,7 +5,6 @@ Writes a plain-text manifest to Scripts/ documenting what was packaged.
 
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
 
 from src.platform_utils import ensure_dir
 

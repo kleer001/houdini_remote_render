@@ -317,10 +317,7 @@ def on_package_clicked(kwargs):
     basename = fc.parm("basename").eval()
     cache_output_pattern = f"Cache/{basename}.$F4{cache_format}"
 
-    try:
-        houdini_version = hou.applicationVersionString()
-    except Exception:
-        houdini_version = "unknown"
+    houdini_version = hou.applicationVersionString()
 
     write_cache_info(
         output_path=info_path,
