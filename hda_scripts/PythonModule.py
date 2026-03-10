@@ -641,7 +641,7 @@ def on_package_clicked(kwargs):
         log.append(f"  [7/8] Writing wrapper ..... DONE")
 
         # 8b. Write render_info.txt for farm scripts
-        render_info_path = os.path.join(scenes_dir, "render_info.txt")
+        render_info_path = os.path.join(shot_dir, "render_info.txt")
         frame_count = frame_end - frame_start + 1
         with open(render_info_path, "w") as f:
             f.write(f"startframe={frame_start}\n")

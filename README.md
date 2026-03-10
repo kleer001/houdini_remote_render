@@ -61,7 +61,8 @@ Both HDAs produce a self-contained folder at `$HIP/{shot_name}_P{pod}T{team}_v{N
 Output/              — Rendered frames land here
 Textures/            — Converted textures
 Cache/               — External caches (VDB, bgeo.sc, Alembic)
-Scenes/              — USDZ archive + .usda wrapper + render_info.txt
+Scenes/              — USDZ archive + .usda wrapper
+render_info.txt      — Frame range and USD filename for farm scripts
 {shot}_manifest.txt  — Human-readable report
 {shot}.hip.zip       — HIP backup
 ```
