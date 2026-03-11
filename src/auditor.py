@@ -62,6 +62,44 @@ def ensure_render_settings(stage) -> None:
     settings.GetResolutionAttr().Set(Gf.Vec2i(1920, 1080))
 
 
+def ensure_render_vars(stage) -> int:
+    """Add default orderedVars (beauty + alpha) to RenderProducts that lack them.
+
+    Standalone husk requires explicit orderedVars to know which AOVs to write.
+    Karma in-process handles this internally, so Houdini scenes often omit them.
+    """
+    from pxr import UsdRender
+
+    patched = 0
+    for prim in stage.Traverse():
+        if prim.GetTypeName() != "RenderProduct":
+            continue
+
+        product = UsdRender.Product(prim)
+        if product.GetOrderedVarsRel().GetTargets():
+            continue
+
+        parent_path = prim.GetPath().GetParentPath()
+        vars_scope_path = parent_path.AppendChild("Vars")
+        beauty_path = vars_scope_path.AppendChild("beauty")
+        alpha_path = vars_scope_path.AppendChild("alpha")
+
+        stage.DefinePrim(vars_scope_path, "Scope")
+
+        beauty_var = UsdRender.Var.Define(stage, beauty_path)
+        beauty_var.GetDataTypeAttr().Set("color3f")
+        beauty_var.GetSourceNameAttr().Set("Ci")
+
+        alpha_var = UsdRender.Var.Define(stage, alpha_path)
+        alpha_var.GetDataTypeAttr().Set("float")
+        alpha_var.GetSourceNameAttr().Set("a")
+
+        product.GetOrderedVarsRel().SetTargets([beauty_path, alpha_path])
+        patched += 1
+
+    return patched
+
+
 def ensure_camera(stage) -> None:
     """Log a warning if no camera exists. Does not create one."""
     for prim in stage.Traverse():

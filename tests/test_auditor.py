@@ -59,3 +59,40 @@ class TestEnsureRenderSettings:
 
         count = sum(1 for p in stage.Traverse() if p.GetTypeName() == "RenderSettings")
         assert count == 1
+
+
+class TestEnsureRenderVars:
+    def test_patches_product_without_ordered_vars(self):
+        from pxr import Usd, UsdRender, Sdf
+        from src.auditor import ensure_render_vars
+
+        stage = Usd.Stage.CreateInMemory()
+        stage.DefinePrim("/Render", "Scope")
+        stage.DefinePrim("/Render/Products", "Scope")
+        UsdRender.Product.Define(stage, "/Render/Products/renderproduct")
+
+        patched = ensure_render_vars(stage)
+
+        assert patched == 1
+        product = UsdRender.Product(stage.GetPrimAtPath("/Render/Products/renderproduct"))
+        targets = product.GetOrderedVarsRel().GetTargets()
+        assert len(targets) == 2
+
+        beauty = UsdRender.Var(stage.GetPrimAtPath(targets[0]))
+        assert beauty.GetDataTypeAttr().Get() == "color3f"
+        assert beauty.GetSourceNameAttr().Get() == "Ci"
+
+        alpha = UsdRender.Var(stage.GetPrimAtPath(targets[1]))
+        assert alpha.GetDataTypeAttr().Get() == "float"
+        assert alpha.GetSourceNameAttr().Get() == "a"
+
+    def test_skips_product_with_existing_ordered_vars(self):
+        from pxr import Usd
+        from src.auditor import ensure_render_vars
+
+        stage = Usd.Stage.Open(
+            "/home/menser/Dropbox/ai/code/houdini_remote_render/tests/minimal_test_scene.usda"
+        )
+        patched = ensure_render_vars(stage)
+
+        assert patched == 0

@@ -521,7 +521,7 @@ def on_package_clicked(kwargs):
 
     try:
         from src.validator import validate_shot_name, validate_hip_saved
-        from src.auditor import audit_stage, ensure_render_settings
+        from src.auditor import audit_stage, ensure_render_settings, ensure_render_vars
         from src.output_injector import inject_output_paths
         from src.packager import flatten_stage, create_usdz
         from src.wrapper_writer import write_wrapper
@@ -590,6 +590,7 @@ def on_package_clicked(kwargs):
         # 5. Audit
         report = audit_stage(stage)
         ensure_render_settings(stage)
+        ensure_render_vars(stage)
         log.append(f"  [4/8] Auditing stage ...... PASS")
 
         # 6. Inject output paths
