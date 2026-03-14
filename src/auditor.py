@@ -16,6 +16,7 @@ class AuditReport:
     products_missing_vars: list[str] = field(default_factory=list)
     vex_shaders: list[str] = field(default_factory=list)
     resolution_mismatches: list[str] = field(default_factory=list)
+    camera_mismatch: str | None = None
     instance_count: int = 0
     warnings: list[str] = field(default_factory=list)
 
@@ -44,11 +45,14 @@ def audit_stage(stage) -> AuditReport:
     report.instance_count = check_instance_density(stage)
     report.vex_shaders = check_vex_shaders(stage)
     report.resolution_mismatches = check_resolution_mismatches(stage)
+    report.camera_mismatch = check_render_camera(stage)
 
     if not report.has_render_settings:
         report.warnings.append("No RenderSettings prim found.")
     if not report.has_camera:
         report.warnings.append("No Camera prim found. A camera is required for rendering.")
+    if report.camera_mismatch:
+        report.warnings.append(report.camera_mismatch)
     if not report.has_render_products:
         report.warnings.append("No RenderProduct prim found.")
     if report.products_missing_vars:
@@ -105,6 +109,37 @@ def ensure_render_settings(stage) -> None:
         settings.GetProductsRel().SetTargets(product_paths)
     if camera_path:
         settings.GetCameraRel().SetTargets([camera_path])
+
+
+def check_render_camera(stage) -> str | None:
+    """Check if RenderSettings camera points to an existing Camera prim.
+
+    Returns a warning string if mismatched, None if OK or no RenderSettings.
+    """
+    from pxr import UsdRender
+
+    camera_paths = set()
+    settings_camera = None
+
+    for prim in stage.Traverse():
+        if prim.GetTypeName() == "Camera":
+            camera_paths.add(str(prim.GetPath()))
+        elif prim.GetTypeName() == "RenderSettings" and settings_camera is None:
+            rs = UsdRender.Settings(prim)
+            targets = rs.GetCameraRel().GetTargets()
+            if targets:
+                settings_camera = str(targets[0])
+
+    if settings_camera is None:
+        return None
+    if settings_camera not in camera_paths:
+        available = ", ".join(sorted(camera_paths)) if camera_paths else "none found"
+        return (
+            f"RenderSettings camera points to {settings_camera} "
+            f"which does not exist. Available cameras: {available}. "
+            f"husk will fail with 'No render camera defined'."
+        )
+    return None
 
 
 def check_render_vars(stage) -> list[str]:

@@ -479,6 +479,8 @@ def on_verify_clicked(kwargs):
                     "NO AOVs configured -- husk will render BLACK. "
                     "Enable Beauty in Karma RenderSettings."
                 )
+            if report.camera_mismatch:
+                audit_issues.append(report.camera_mismatch)
 
             if audit_issues:
                 log.append(f"  [5/5] Stage audit ......... WARN")
@@ -631,6 +633,18 @@ def on_package_clicked(kwargs):
                 "Standalone husk will render a BLACK image without them.\n"
                 "Enable the Beauty AOV in your Karma RenderSettings LOP,\n"
                 "then re-run packaging.\n\n"
+                "Continue anyway?"
+            )
+            if not hou.ui.displayConfirmation(msg):
+                return
+
+        # Warn if render camera doesn't exist
+        if report.camera_mismatch:
+            msg = (
+                "Render camera mismatch!\n\n"
+                f"{report.camera_mismatch}\n\n"
+                "husk will fail to render without a valid camera.\n"
+                "Set the correct camera in your Karma RenderSettings LOP.\n\n"
                 "Continue anyway?"
             )
             if not hou.ui.displayConfirmation(msg):
