@@ -8,11 +8,11 @@ import platform
 from pathlib import Path
 
 
-def get_imaketx_path() -> str:
-    """Locate imaketx inside $HFS/bin/.
+def _get_hfs_binary(binary: str) -> str:
+    """Locate a binary inside $HFS/bin/.
 
-    Returns the full path to the imaketx executable.
-    Raises RuntimeError if not found.
+    Returns the full path to the executable.
+    Raises RuntimeError if $HFS is unset or the binary is missing.
     """
     try:
         import hou
@@ -22,20 +22,30 @@ def get_imaketx_path() -> str:
 
     if not hfs:
         raise RuntimeError(
-            "Cannot locate imaketx: $HFS is not set. "
+            f"Cannot locate {binary}: $HFS is not set. "
             "Are you running inside Houdini?"
         )
 
-    name = "imaketx.exe" if platform.system() == "Windows" else "imaketx"
+    name = f"{binary}.exe" if platform.system() == "Windows" else binary
     path = os.path.join(hfs, "bin", name)
 
     if not os.path.isfile(path):
         raise RuntimeError(
-            f"imaketx not found at {path}. "
+            f"{binary} not found at {path}. "
             f"Expected it inside $HFS/bin/ (HFS={hfs})."
         )
 
     return path
+
+
+def get_imaketx_path() -> str:
+    """Locate imaketx inside $HFS/bin/."""
+    return _get_hfs_binary("imaketx")
+
+
+def get_iconvert_path() -> str:
+    """Locate iconvert inside $HFS/bin/."""
+    return _get_hfs_binary("iconvert")
 
 
 def normalize_path(p: str) -> str:
