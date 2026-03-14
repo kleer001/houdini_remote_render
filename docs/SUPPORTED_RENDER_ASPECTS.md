@@ -237,19 +237,63 @@ In Houdini 21.0, denoising is controlled via Karma render settings USD attribute
 
 ---
 
-## What's Not Yet Tested
+## Recently Verified (render script pipeline)
 
-The following aspects are on the roadmap but haven't been through the stress test pipeline yet:
+The following aspects have been verified through the full package → `run_render.sh` → standalone `husk` pipeline:
 
-- [ ] Multiple AOVs (Beauty + Depth + Normal in single EXR)
-- [ ] XPU rendering path (MaterialX-only scene)
-- [ ] True displacement shaders
-- [ ] Alembic cache references
-- [ ] Time-varying topology (point count changes per frame)
-- [ ] Nested instancing
-- [ ] MaterialX with procedural patterns (noise, etc.)
-- [ ] Light filters and blockers
-- [ ] Atmosphere / fog volumes (non-geometry)
+### Multiple AOVs
+
+**Status:** Supported (requires Karma-native AOV configuration)
+
+Multiple RenderVars (Beauty + additional AOVs) are preserved through packaging. The output EXR contains multiple subimages/layers. However, extra AOVs must be configured through the `karmarendersettings` LOP — generic `UsdRender.Var` prims with arbitrary names produce "Unsupported AOV settings" warnings in husk. Use the Karma render settings AOV checkboxes (e.g., `combineddiffuse`, `albedo`) for reliable multi-AOV output.
+
+### XPU Rendering
+
+**Status:** Supported (MaterialX materials only)
+
+The packager produces scenes renderable by Karma XPU (`BRAY_HdKarmaXPU`). XPU requires `--gpu` flag and MaterialX-only materials — VEX shaders are not supported on XPU. Pass `engine="xpu"` to `write_render_script()` or manually edit the generated script to use `--renderer BRAY_HdKarmaXPU --gpu`.
+
+### Alembic Cache References
+
+**Status:** Fully supported
+
+Alembic (`.abc`) geometry flows through SOP Import LOPs into USD. By the time the packager processes the stage, Alembic data is standard USD geometry — no special handling needed. The packager bundles it in the USDZ like any other geometry.
+
+### Time-Varying Topology
+
+**Status:** Fully supported
+
+Geometry with changing point counts per frame (e.g., particle systems, scatter SOPs with animated count) packages and renders correctly across multi-frame sequences. The varying topology is captured in the USD time samples.
+
+### Nested Instancing
+
+**Status:** Fully supported
+
+Nested instance hierarchies (copy-to-points of copy-to-points) survive stage flattening and USDZ packaging. Prototype geometry and transforms are preserved.
+
+### MaterialX Procedural Patterns
+
+**Status:** Fully supported
+
+MaterialX procedural nodes (`mtlxfractal3d`, `mtlxnoise3d`, etc.) are fully portable — they don't reference external files and are self-contained in the USD material definition. No baking or special handling required.
+
+### Displacement Shaders
+
+**Status:** Supported (MaterialX displacement)
+
+MaterialX displacement (`mtlxdisplacement`) nodes are preserved through packaging. Karma applies true displacement at render time based on the `displacementShader` output of the material. Displacement quality is controlled by `karma:object:dicingquality` primvars.
+
+### Atmosphere / Fog Volumes
+
+**Status:** Fully supported
+
+Non-geometry fog volumes from SOP networks are baked to `.usdc` via temporary SOP Import LOPs and bundled in the USDZ. Karma renders them correctly in standalone mode. Already verified in the original stress test (VDB + fog volume prims).
+
+### Light Filters
+
+**Status:** Not supported in Karma (H21.0)
+
+Generic USD `LightFilter` prims are not handled by Karma CPU — husk logs "Unhandled node type" and ignores them. In Houdini 21.0, light shaping (barn doors, gobos) is controlled through light parameters directly (e.g., `shaping:cone:angle`, `shaping:cone:softness`), not through separate LightFilter prims. Configure light shaping on the light LOPs before packaging.
 
 ---
 
