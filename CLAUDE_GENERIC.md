@@ -136,6 +136,12 @@ Longer explanation if needed. Explain WHY, not what.
 
 ---
 
+## Delivery-Aware Fixes
+
+**After editing any file and before declaring work complete, identify how changes reach end users.** Every project has a delivery mechanism — built binaries, packaged assets, container images, and published libraries are common examples, but every project is different. Trace your change from source file through to that deliverable artifact. A fix is complete when it appears in the thing users actually receive, not when the source file is saved and tests pass. If the project has a build, packaging, or sync step, perform it as part of the fix.
+
+---
+
 ## Critical Rules (Summary)
 
 1. **One path, no fallbacks.** Don't `try X except: Y`. Let it fail.
@@ -143,3 +149,4 @@ Longer explanation if needed. Explain WHY, not what.
 3. **No single-use abstractions.** No helpers for one call site.
 4. **Verify before done.** Run it. Test it. Don't guess.
 5. **Uncertain? Ask.** Don't pick silently between interpretations.
+6. **Deliver, don't just edit.** Trace changes through to the deliverable artifact.

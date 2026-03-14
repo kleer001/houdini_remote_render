@@ -261,11 +261,34 @@ def _bake_houdini_paths(flat_usda_path, bake_dir, frame_range=None):
     asset paths in the USD.
     Unbakeable paths are left unchanged (not stripped).
 
-    Returns (baked, failed) — lists of (original_path, baked_path|reason, size_mb).
+    Returns (baked, failed, shader_opdef_map):
+        baked/failed -- lists of (original_path, baked_path|reason, size_mb).
+        shader_opdef_map -- {prim_path: original_opdef_uri} for VOP shader
+            sourceAsset refs.  The caller should override these back to opdef:
+            URIs in the wrapper so husk resolves them through the OTL system.
     """
-    from pxr import Sdf, UsdUtils
+    from pxr import Sdf, Usd, UsdUtils
 
     os.makedirs(bake_dir, exist_ok=True)
+
+    # Pre-scan: record shader opdef: URIs before baking rewrites them.
+    shader_opdef_map = {}
+    pre_stage = Usd.Stage.Open(flat_usda_path)
+    for prim in pre_stage.Traverse():
+        if prim.GetTypeName() != "Shader":
+            continue
+        impl = prim.GetAttribute("info:implementationSource")
+        if not impl or impl.Get() != "sourceAsset":
+            continue
+        sa = prim.GetAttribute("info:sourceAsset")
+        if not sa:
+            continue
+        val = sa.Get()
+        path_str = val.path if hasattr(val, "path") else str(val)
+        if path_str.startswith("opdef:") and "/Vop/" in path_str:
+            shader_opdef_map[str(prim.GetPath())] = path_str
+    del pre_stage
+
     layer = Sdf.Layer.FindOrOpen(flat_usda_path)
 
     # Collect unique Houdini paths
@@ -277,7 +300,7 @@ def _bake_houdini_paths(flat_usda_path, bake_dir, frame_range=None):
     UsdUtils.ModifyAssetPaths(layer, _collect)
 
     if not houdini_paths:
-        return [], []
+        return [], [], shader_opdef_map
 
     import hou
 
@@ -350,7 +373,7 @@ def _bake_houdini_paths(flat_usda_path, bake_dir, frame_range=None):
                     attr.Set(Sdf.AssetPath(frame_path), Usd.TimeCode(frame))
         stage.GetRootLayer().Save()
 
-    return baked, failed
+    return baked, failed, shader_opdef_map
 
 
 def on_shot_name_changed(kwargs):
@@ -451,6 +474,11 @@ def on_verify_clicked(kwargs):
                 audit_issues.append("no camera found")
             if not report.has_render_products:
                 audit_issues.append("no render products found")
+            if report.products_missing_vars:
+                audit_issues.append(
+                    "NO AOVs configured -- husk will render BLACK. "
+                    "Enable Beauty in Karma RenderSettings."
+                )
 
             if audit_issues:
                 log.append(f"  [5/5] Stage audit ......... WARN")
@@ -460,6 +488,11 @@ def on_verify_clicked(kwargs):
             log.append(f"        Render settings       {'found' if report.has_render_settings else 'MISSING (will create)'}")
             log.append(f"        Camera                {'found' if report.has_camera else 'MISSING'}")
             log.append(f"        Render products       {'found' if report.has_render_products else 'MISSING'}")
+            log.append(f"        AOVs (RenderVars)     {'found' if report.has_render_vars else 'MISSING'}")
+            if report.vex_shaders:
+                log.append(f"        VEX shaders           {', '.join(report.vex_shaders)}")
+            if report.resolution_mismatches:
+                log.append(f"        Resolution            MISMATCH")
             log.append(f"        Instances             {report.instance_count:,}")
 
             warnings.extend(report.warnings)
@@ -521,7 +554,7 @@ def on_package_clicked(kwargs):
 
     try:
         from src.validator import validate_shot_name, validate_hip_saved
-        from src.auditor import audit_stage, ensure_render_settings, ensure_render_vars
+        from src.auditor import audit_stage, ensure_render_settings
         from src.output_injector import inject_output_paths
         from src.packager import flatten_stage, create_usdz
         from src.wrapper_writer import write_wrapper
@@ -587,29 +620,43 @@ def on_package_clicked(kwargs):
             )
             return
 
-        # 5. Audit
+        # 5. Audit (read-only — live LOP stage layer is not editable)
         report = audit_stage(stage)
-        ensure_render_settings(stage)
-        ensure_render_vars(stage)
         log.append(f"  [4/8] Auditing stage ...... PASS")
 
-        # 6. Inject output paths
+        # Warn (and optionally block) if no AOVs are configured
+        if report.products_missing_vars:
+            msg = (
+                "No AOVs (RenderVars) found on RenderProducts.\n\n"
+                "Standalone husk will render a BLACK image without them.\n"
+                "Enable the Beauty AOV in your Karma RenderSettings LOP,\n"
+                "then re-run packaging.\n\n"
+                "Continue anyway?"
+            )
+            if not hou.ui.displayConfirmation(msg):
+                return
+
+        # 6. Flatten first, then modify the editable flattened stage
         output_format = node.parm("output_format").evalAsString()
         frame_start = int(node.parm("frame_start").eval())
         frame_end = int(node.parm("frame_end").eval())
+
+        staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
+        flat_path = flatten_stage(stage, staging_dir)
+
+        from pxr import Usd
+        edit_stage = Usd.Stage.Open(flat_path)
+        ensure_render_settings(edit_stage)
         inject_output_paths(
-            stage, shot_name,
+            edit_stage, shot_name,
             output_format=output_format,
             frame_start=frame_start,
             frame_end=frame_end,
         )
+        edit_stage.GetRootLayer().Save()
         log.append(f"  [5/8] Injecting paths ..... DONE")
-
-        # 7. Flatten and bake Houdini-internal paths
-        staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
-        flat_path = flatten_stage(stage, staging_dir)
         bake_dir = os.path.join(staging_dir, "baked")
-        baked, failed = _bake_houdini_paths(
+        baked, failed, shader_opdef_map = _bake_houdini_paths(
             flat_path, bake_dir, frame_range=(frame_start, frame_end)
         )
         if baked:
@@ -641,7 +688,10 @@ def on_package_clicked(kwargs):
         wrapper_filename = DEFAULT_WRAPPER_FILENAME.format(shot_name=shot_name)
         wrapper_path = os.path.join(scenes_dir, wrapper_filename)
 
-        write_wrapper(usdz_filename, {}, wrapper_path)
+        write_wrapper(usdz_filename, {}, wrapper_path,
+                      shader_opdef_map=shader_opdef_map)
+        if shader_opdef_map:
+            log.append(f"        Restored {len(shader_opdef_map)} shader opdef: URI(s)")
         log.append(f"  [7/8] Writing wrapper ..... DONE")
 
         # 8b. Write render_info.txt for farm scripts

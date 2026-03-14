@@ -59,6 +59,14 @@ def inject_output_paths(
         ext = output_format if output_format in ("png", "exr") else "png"
         new_path = f"{output_dir_relative}/{shot_name}.<F4>.{ext}"
 
+        # Clear any time-sampled productName baked by Karma's expression
+        # evaluator ($HIP/render/$HIPNAME.$OS.$F4.exr → concrete path).
+        # Time-sampled values take precedence over defaults in USD, so
+        # husk would use the stale baked path instead of our override.
+        attr = prim.GetAttribute("productName")
+        if attr and attr.GetTimeSamples():
+            attr.Clear()
+
         # Author via Sdf so it survives flatten
         prim_spec = root_layer.GetPrimAtPath(prim.GetPath())
         if prim_spec is None:

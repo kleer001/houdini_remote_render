@@ -104,6 +104,10 @@ Both follow the same sequence: validate → audit → create dirs → inject out
 - **`validator.py`** — `validate_shot_name()` and `validate_hip_saved()` are used by both HDAs
 - **`platform_utils.py`** — `ensure_dir()`, `normalize_path()`, `check_disk_space()` are used by both HDAs
 
+## Deliverable = HDA + src/
+
+The `.hdalc` files are the deliverable artifact — they are installed on other people's machines. The HDAs load `src/` modules at runtime via `_ensure_src_path()`, which resolves the repo root relative to the HDA library file. This means **any change to `src/` files is only effective if the updated `src/` directory is delivered alongside the HDA**. Editing `src/` locally without updating the HDA on disk is a local-only fix that won't reach other users. After changing any code (whether in `hda_scripts*/` or `src/`), always save the HDA definition to disk so the `.hdalc` is current.
+
 ## USD API gotchas
 
 - `stage.Flatten()` returns `Sdf.Layer`, not `Usd.Stage`

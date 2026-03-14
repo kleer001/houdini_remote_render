@@ -12,6 +12,10 @@ class AuditReport:
     has_render_settings: bool = False
     has_camera: bool = False
     has_render_products: bool = False
+    has_render_vars: bool = False
+    products_missing_vars: list[str] = field(default_factory=list)
+    vex_shaders: list[str] = field(default_factory=list)
+    resolution_mismatches: list[str] = field(default_factory=list)
     instance_count: int = 0
     warnings: list[str] = field(default_factory=list)
 
@@ -31,8 +35,15 @@ def audit_stage(stage) -> AuditReport:
             report.has_camera = True
         elif type_name == "RenderProduct":
             report.has_render_products = True
+            product = UsdRender.Product(prim)
+            if not product.GetOrderedVarsRel().GetTargets():
+                report.products_missing_vars.append(str(prim.GetPath()))
+        elif type_name == "RenderVar":
+            report.has_render_vars = True
 
     report.instance_count = check_instance_density(stage)
+    report.vex_shaders = check_vex_shaders(stage)
+    report.resolution_mismatches = check_resolution_mismatches(stage)
 
     if not report.has_render_settings:
         report.warnings.append("No RenderSettings prim found.")
@@ -40,6 +51,21 @@ def audit_stage(stage) -> AuditReport:
         report.warnings.append("No Camera prim found. A camera is required for rendering.")
     if not report.has_render_products:
         report.warnings.append("No RenderProduct prim found.")
+    if report.products_missing_vars:
+        report.warnings.append(
+            "No AOVs (RenderVars) configured. Standalone husk will render a BLACK image. "
+            "Enable the Beauty AOV in your Karma RenderSettings LOP."
+        )
+    if report.vex_shaders:
+        names = ", ".join(report.vex_shaders)
+        report.warnings.append(
+            f"VEX shaders found: {names}. "
+            "These require Houdini installed on the render machine (Karma CPU only, not XPU). "
+            "For fully portable scenes, use MaterialX (mtlxstandard_surface)."
+        )
+    if report.resolution_mismatches:
+        for msg in report.resolution_mismatches:
+            report.warnings.append(msg)
     if report.instance_count > 1_000_000:
         report.warnings.append(
             f"High instance count ({report.instance_count:,}). "
@@ -50,8 +76,13 @@ def audit_stage(stage) -> AuditReport:
 
 
 def ensure_render_settings(stage) -> None:
-    """Author a minimal /Render/rendersettings prim if none exists."""
-    from pxr import Gf, UsdRender
+    """Author a minimal /Render/rendersettings prim if none exists.
+
+    When creating a fallback RenderSettings, wires the ``products``
+    relationship to every RenderProduct already in the scene and sets
+    the ``camera`` relationship to the first Camera found.
+    """
+    from pxr import Gf, Sdf, UsdRender
 
     for prim in stage.Traverse():
         if prim.GetTypeName() == "RenderSettings":
@@ -61,43 +92,92 @@ def ensure_render_settings(stage) -> None:
     settings = UsdRender.Settings.Define(stage, "/Render/rendersettings")
     settings.GetResolutionAttr().Set(Gf.Vec2i(1920, 1080))
 
+    # Wire products and camera relationships so husk can find them
+    product_paths = []
+    camera_path = None
+    for prim in stage.Traverse():
+        if prim.GetTypeName() == "RenderProduct":
+            product_paths.append(prim.GetPath())
+        elif prim.GetTypeName() == "Camera" and camera_path is None:
+            camera_path = prim.GetPath()
 
-def ensure_render_vars(stage) -> int:
-    """Add default orderedVars (beauty + alpha) to RenderProducts that lack them.
+    if product_paths:
+        settings.GetProductsRel().SetTargets(product_paths)
+    if camera_path:
+        settings.GetCameraRel().SetTargets([camera_path])
 
-    Standalone husk requires explicit orderedVars to know which AOVs to write.
-    Karma in-process handles this internally, so Houdini scenes often omit them.
+
+def check_render_vars(stage) -> list[str]:
+    """Return paths of RenderProducts that have no orderedVars.
+
+    Standalone husk requires explicit orderedVars authored by the Karma
+    RenderSettings LOP (Beauty AOV checkbox).  Rather than trying to
+    author our own RenderVars (which differ between in-process and
+    standalone husk — SideFX BUG #134678), we detect the gap and warn
+    the user to enable AOVs in their scene.
     """
     from pxr import UsdRender
 
-    patched = 0
+    missing = []
     for prim in stage.Traverse():
         if prim.GetTypeName() != "RenderProduct":
             continue
-
         product = UsdRender.Product(prim)
-        if product.GetOrderedVarsRel().GetTargets():
+        if not product.GetOrderedVarsRel().GetTargets():
+            missing.append(str(prim.GetPath()))
+    return missing
+
+
+def check_vex_shaders(stage) -> list[str]:
+    """Return material names containing VEX/sourceAsset shaders.
+
+    Standalone husk cannot compile VEX shaders from sourceAsset references.
+    These materials will render as default grey. Only MaterialX (ND_*),
+    UsdPreviewSurface, and Karma-native (kma_*) shaders are portable.
+    """
+    vex_materials = []
+    for prim in stage.Traverse():
+        if prim.GetTypeName() != "Shader":
             continue
+        impl = prim.GetAttribute("info:implementationSource")
+        if impl and impl.Get() == "sourceAsset":
+            mat = prim.GetParent()
+            mat_name = mat.GetName() if mat else prim.GetName()
+            if mat_name not in vex_materials:
+                vex_materials.append(mat_name)
+    return vex_materials
 
-        parent_path = prim.GetPath().GetParentPath()
-        vars_scope_path = parent_path.AppendChild("Vars")
-        beauty_path = vars_scope_path.AppendChild("beauty")
-        alpha_path = vars_scope_path.AppendChild("alpha")
 
-        stage.DefinePrim(vars_scope_path, "Scope")
+def check_resolution_mismatches(stage) -> list[str]:
+    """Warn if RenderProduct resolution differs from RenderSettings."""
+    from pxr import UsdRender
 
-        beauty_var = UsdRender.Var.Define(stage, beauty_path)
-        beauty_var.GetDataTypeAttr().Set("color3f")
-        beauty_var.GetSourceNameAttr().Set("Ci")
+    settings_res = None
+    for prim in stage.Traverse():
+        if prim.GetTypeName() == "RenderSettings":
+            attr = prim.GetAttribute("resolution")
+            if attr:
+                settings_res = attr.Get()
+            break
 
-        alpha_var = UsdRender.Var.Define(stage, alpha_path)
-        alpha_var.GetDataTypeAttr().Set("float")
-        alpha_var.GetSourceNameAttr().Set("a")
+    if settings_res is None:
+        return []
 
-        product.GetOrderedVarsRel().SetTargets([beauty_path, alpha_path])
-        patched += 1
-
-    return patched
+    mismatches = []
+    for prim in stage.Traverse():
+        if prim.GetTypeName() != "RenderProduct":
+            continue
+        attr = prim.GetAttribute("resolution")
+        if not attr:
+            continue
+        prod_res = attr.Get()
+        if prod_res and prod_res != settings_res:
+            mismatches.append(
+                f"Resolution mismatch: RenderSettings={settings_res[0]}x{settings_res[1]} "
+                f"but {prim.GetName()}={prod_res[0]}x{prod_res[1]}. "
+                f"husk will use the RenderProduct resolution."
+            )
+    return mismatches
 
 
 def ensure_camera(stage) -> None:

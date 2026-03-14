@@ -61,38 +61,37 @@ class TestEnsureRenderSettings:
         assert count == 1
 
 
-class TestEnsureRenderVars:
-    def test_patches_product_without_ordered_vars(self):
-        from pxr import Usd, UsdRender, Sdf
-        from src.auditor import ensure_render_vars
+class TestCheckRenderVars:
+    def test_detects_product_without_ordered_vars(self):
+        from pxr import Usd, UsdRender
+        from src.auditor import check_render_vars
 
         stage = Usd.Stage.CreateInMemory()
         stage.DefinePrim("/Render", "Scope")
         stage.DefinePrim("/Render/Products", "Scope")
         UsdRender.Product.Define(stage, "/Render/Products/renderproduct")
 
-        patched = ensure_render_vars(stage)
+        missing = check_render_vars(stage)
+        assert missing == ["/Render/Products/renderproduct"]
 
-        assert patched == 1
-        product = UsdRender.Product(stage.GetPrimAtPath("/Render/Products/renderproduct"))
-        targets = product.GetOrderedVarsRel().GetTargets()
-        assert len(targets) == 2
-
-        beauty = UsdRender.Var(stage.GetPrimAtPath(targets[0]))
-        assert beauty.GetDataTypeAttr().Get() == "color3f"
-        assert beauty.GetSourceNameAttr().Get() == "Ci"
-
-        alpha = UsdRender.Var(stage.GetPrimAtPath(targets[1]))
-        assert alpha.GetDataTypeAttr().Get() == "float"
-        assert alpha.GetSourceNameAttr().Get() == "a"
-
-    def test_skips_product_with_existing_ordered_vars(self):
+    def test_passes_product_with_existing_ordered_vars(self):
         from pxr import Usd
-        from src.auditor import ensure_render_vars
+        from src.auditor import check_render_vars
 
         stage = Usd.Stage.Open(
             "/home/menser/Dropbox/ai/code/houdini_remote_render/tests/minimal_test_scene.usda"
         )
-        patched = ensure_render_vars(stage)
+        missing = check_render_vars(stage)
+        assert missing == []
 
-        assert patched == 0
+    def test_audit_report_includes_missing_vars_warning(self):
+        from pxr import Usd, UsdRender
+        from src.auditor import audit_stage
+
+        stage = Usd.Stage.CreateInMemory()
+        stage.DefinePrim("/Render", "Scope")
+        UsdRender.Product.Define(stage, "/Render/Products/renderproduct")
+
+        report = audit_stage(stage)
+        assert report.products_missing_vars == ["/Render/Products/renderproduct"]
+        assert any("AOV" in w for w in report.warnings)

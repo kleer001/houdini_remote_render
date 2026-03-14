@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 
 from src.validator import validate_shot_name
-from src.auditor import audit_stage, ensure_render_settings, ensure_render_vars
+from src.auditor import audit_stage, ensure_render_settings
 from src.output_injector import inject_output_paths
 from src.packager import flatten_stage, create_usdz
 from src.wrapper_writer import write_wrapper
@@ -60,10 +60,8 @@ def run_pipeline(
     log.append(f"Shot name: {shot_name}")
     log.append(f"HIP dir: {hip_dir}")
 
-    # 2. Audit
+    # 2. Audit (read-only — live LOP stage layer is not editable)
     report = audit_stage(stage)
-    ensure_render_settings(stage)
-    ensure_render_vars(stage)
     log.append(f"Stage audit: {sum(1 for _ in stage.Traverse())} prims")
     for w in report.warnings:
         log.append(f"  ! {w}")
@@ -77,18 +75,21 @@ def run_pipeline(
     for d in ("Output", "Textures", "Cache", "Scenes", "Scripts"):
         ensure_dir(os.path.join(shot_dir, d))
 
-    # 4. Inject output paths
+    # 4. Flatten first, then modify the editable flattened stage
+    staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
+    flat_path = flatten_stage(stage, staging_dir)
+
+    from pxr import Usd
+    edit_stage = Usd.Stage.Open(flat_path)
+    ensure_render_settings(edit_stage)
     inject_output_paths(
-        stage, shot_name,
+        edit_stage, shot_name,
         output_format=output_format,
         frame_start=frame_start,
         frame_end=frame_end,
     )
+    edit_stage.GetRootLayer().Save()
     log.append(f"Output paths injected (format: {output_format}, frames: {frame_start}-{frame_end})")
-
-    # 5. Flatten & USDZ
-    staging_dir = tempfile.mkdtemp(prefix="usd_packager_")
-    flat_path = flatten_stage(stage, staging_dir)
 
     scenes_dir = os.path.join(shot_dir, "Scenes")
     usdz_path = os.path.join(scenes_dir, usdz_filename)
@@ -101,6 +102,9 @@ def run_pipeline(
     wrapper_path = os.path.join(scenes_dir, wrapper_filename)
     write_wrapper(usdz_filename, {}, wrapper_path)
     log.append(f"Wrapper: {wrapper_path}")
+    # Note: headless pipeline doesn't bake Houdini paths, so no shader
+    # opdef: restoration needed here (the stage comes from a LOP network
+    # where opdef: paths are already resolved by Houdini).
 
     # 6b. Write render_info.txt for farm scripts
     render_info_path = os.path.join(shot_dir, "render_info.txt")
