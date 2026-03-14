@@ -186,14 +186,66 @@ The USD `purpose` attribute (`render`, `proxy`, `guide`) on `Imageable` prims is
 
 ---
 
+## Render Script (husk CLI)
+
+### Render Script Generation
+
+**Status:** Fully supported
+
+The packager generates a `run_render.sh` bash script in the `Scripts/` directory that launches `husk` (Karma's standalone renderer) with the correct flags. The script is executable, sources the Houdini environment from `$HFS`, and runs husk from the `Scenes/` directory (husk resolves `productName` paths relative to CWD).
+
+**Smart defaults:**
+- `--restart-delegate 1` — auto-added for frame sequences (prevents memory accumulation across frames)
+- `--make-output-path` — always included (creates output directories automatically)
+- `--headlight none` — always included (prevents phantom headlight that would alter lighting)
+
+### Supported husk Flags
+
+| Flag | Purpose | When to use |
+|------|---------|-------------|
+| `--restart-delegate N` | Restart render delegate every N frames | Auto-added for sequences; increase N for faster renders with more memory |
+| `--exrmode 0` | Legacy EXR output mode | If downstream tools require legacy EXR format |
+| `--autotile` | Enable tiled rendering | Large resolution renders that exceed GPU memory |
+| `--timelimit N` | Per-frame time limit (seconds) | Farm safety — kill runaway frames |
+| `--snapshot N` | Progressive snapshot interval (seconds) | Preview partial renders during long frames |
+| `--oiio-max-memory-percent N` | OIIO texture cache memory cap | Control texture memory on shared machines |
+| `--engine xpu`/`cpu` | Karma engine selection | XPU for GPU acceleration (MaterialX only) |
+
+### Headlight Detection
+
+**Status:** Fully supported
+
+The auditor checks the stage for USD light prims (DomeLight, RectLight, SphereLight, etc.). If no lights are found, a warning is displayed during verification:
+
+> *"No lights found. Standalone husk has no default headlight — the render will be black."*
+
+This is important because the render script always includes `--headlight none` to prevent phantom headlights from altering intentional lighting setups. Scenes must include their own lights.
+
+### Multi-Frame Rendering
+
+**Status:** Fully supported
+
+Multi-frame animation renders produce correctly numbered EXR files (`shot_name.0001.exr`, `shot_name.0002.exr`, ...). The `<F4>` token in USD `productName` is expanded by husk at render time. The `--restart-delegate 1` smart default is auto-added for sequences to prevent memory accumulation across frames.
+
+Verified: 10-frame render of full stress test scene (VDB volumes, VEX shaders, point instances, COP textures, UDIM textures, multiple lights) — all frames rendered correctly.
+
+### Denoiser
+
+**Status:** Not a husk CLI flag (H21.0)
+
+In Houdini 21.0, denoising is controlled via Karma render settings USD attributes (`karma:global:denoising:enable`, etc.), not via husk command-line flags. Configure denoising in your Karma RenderSettings LOP before packaging.
+
+---
+
 ## What's Not Yet Tested
 
 The following aspects are on the roadmap but haven't been through the stress test pipeline yet:
 
+- [ ] Multiple AOVs (Beauty + Depth + Normal in single EXR)
+- [ ] XPU rendering path (MaterialX-only scene)
+- [ ] True displacement shaders
 - [ ] Alembic cache references
 - [ ] Time-varying topology (point count changes per frame)
-- [ ] Displacement shaders (true displacement vs bump)
-- [ ] Deep AOVs and cryptomatte
 - [ ] Nested instancing
 - [ ] MaterialX with procedural patterns (noise, etc.)
 - [ ] Light filters and blockers

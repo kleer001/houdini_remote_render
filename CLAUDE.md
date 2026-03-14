@@ -44,22 +44,23 @@ No build step. No linter configured. No `requirements.txt` — all dependencies 
 
 2. **`hda_scripts/PythonModule.py`** — HDA callbacks (`on_verify_clicked`, `on_package_clicked`). These replicate the pipeline steps inline (not calling `run_pipeline`) because they need granular control over the UI: per-step log messages, `hou.ui.displayMessage` dialogs, confirmation prompts, and writing to the `log_output` parameter.
 
-Both follow the same sequence: validate → audit → create dirs → inject output paths → flatten & USDZ → write wrapper → write manifest.
+Both follow the same sequence: validate → audit → create dirs → inject output paths → flatten & USDZ → write wrapper → write render script → write manifest.
 
 **Module pipeline (in execution order):**
 
 `src/` modules are pure-logic with no `hou` imports at module level (they import `hou` and `pxr` lazily inside functions). This enables CI testing without Houdini.
 
 1. **validator** — shot name regex, HIP file saved check, directory structure check, ROP connection check
-2. **auditor** — traverses stage for RenderSettings/Camera/RenderProduct prims, counts PointInstancer instances, authors fallback RenderSettings if missing
+2. **auditor** — traverses stage for RenderSettings/Camera/RenderProduct/Light prims, counts PointInstancer instances, authors fallback RenderSettings if missing
 3. **classifier** — `UsdUtils.ComputeAllDependencies` to bucket files into textures/caches/sublayers, UDIM pattern detection
 4. **converter** — `imaketx` subprocess calls for texture conversion (NOT `maketx` — it doesn't exist in this Houdini build)
 5. **gatherer** — copies files to staging dirs, rewrites USD asset paths via `UsdUtils.ModifyAssetPaths`
 6. **output_injector** — authors `productName` on RenderProduct prims via `Sdf` layer specs
 7. **packager** — `stage.Flatten()` → export `.usda` → `UsdUtils.CreateNewUsdzPackage`
 8. **wrapper_writer** — creates thin `.usda` that sublayers the USDZ and overrides cache paths
-9. **manifest** — writes human-readable plain-text report
-10. **platform_utils** — `imaketx` path resolution, POSIX path normalization, `ensure_dir` with `.placeholder` files (for Google Drive sync)
+9. **render_script_writer** — generates `run_render.sh` husk launcher with smart defaults and HFS environment sourcing
+10. **manifest** — writes human-readable plain-text report
+11. **platform_utils** — `imaketx` path resolution, POSIX path normalization, `ensure_dir` with `.placeholder` files (for Google Drive sync)
 
 **HDA scripts (`hda_scripts/`):**
 
@@ -115,6 +116,8 @@ The `.hdalc` files are the deliverable artifact — they are installed on other 
 - `UsdZip` module does not exist in this Houdini build — use `UsdUtils.CreateNewUsdzPackage`
 - `CreateNewUsdzPackage` bundles all referenced assets — they must exist on disk
 - Texture tool is `imaketx` (`$HFS/bin/imaketx`), not `maketx`. Output formats: OpenEXR, RAT, TIFF (no `.tx`)
+- **husk resolves `productName` paths relative to CWD**, not the USD file location. The render script must `cd Scenes/` before calling husk so that `../Output/` resolves correctly to the shot root's `Output/` directory.
+- husk frame range flags: `-f START -n COUNT -i INC` (not `-f START END`)
 
 ## Testing patterns
 

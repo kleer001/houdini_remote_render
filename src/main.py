@@ -17,6 +17,7 @@ from src.output_injector import inject_output_paths
 from src.packager import flatten_stage, create_usdz
 from src.wrapper_writer import write_wrapper
 from src.manifest import ManifestData, write_manifest
+from src.render_script_writer import write_render_script
 from src.platform_utils import ensure_dir
 
 
@@ -128,7 +129,18 @@ def run_pipeline(
         f.write(f"usdfile=Scenes/{wrapper_filename}\n")
     log.append(f"Render info: {render_info_path}")
 
-    # 7. Manifest
+    # 7b. Render script
+    render_script_path = os.path.join(shot_dir, "Scripts", "run_render.sh")
+    write_render_script(
+        output_path=render_script_path,
+        shot_name=shot_name,
+        wrapper_filename=wrapper_filename,
+        frame_start=frame_start,
+        frame_end=frame_end,
+    )
+    log.append(f"Render script: {render_script_path}")
+
+    # 8. Manifest
     manifest_path = os.path.join(shot_dir, f"{shot_name}_manifest.txt")
 
     try:

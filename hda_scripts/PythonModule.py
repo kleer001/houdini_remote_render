@@ -482,6 +482,11 @@ def on_verify_clicked(kwargs):
                 )
             if report.camera_mismatch:
                 audit_issues.append(report.camera_mismatch)
+            if not report.has_lights:
+                audit_issues.append(
+                    "No lights found — standalone husk has no default "
+                    "headlight, the render will be black"
+                )
 
             if audit_issues:
                 log.append(f"  [5/5] Stage audit ......... WARN")
@@ -496,6 +501,7 @@ def on_verify_clicked(kwargs):
                 log.append(f"        VEX shaders           {', '.join(report.vex_shaders)}")
             if report.resolution_mismatches:
                 log.append(f"        Resolution            MISMATCH")
+            log.append(f"        Lights                {report.light_count}")
             log.append(f"        Instances             {report.instance_count:,}")
 
             warnings.extend(report.warnings)
@@ -587,14 +593,14 @@ def on_package_clicked(kwargs):
         log.append(f"Package — {folder_name}")
         log.append(SEP)
         log.append("")
-        log.append(f"  [1/8] Validating .......... PASS")
+        log.append(f"  [1/9] Validating .......... PASS")
 
         # 2. Create shot directories at $HIP/folder_name/
         hip_dir = _get_hip_dir()
         shot_dir = os.path.join(hip_dir, folder_name)
         for d in ("Output", "Textures", "Cache", "Scenes", "Scripts"):
             ensure_dir(os.path.join(shot_dir, d))
-        log.append(f"  [2/8] Creating dirs ....... DONE")
+        log.append(f"  [2/9] Creating dirs ....... DONE")
 
         # 3. Backup current .hip file as a zip into the shot directory
         hip_path = hou.hipFile.path()
@@ -604,7 +610,7 @@ def on_package_clicked(kwargs):
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.write(hip_path, hip_basename)
         zip_size = os.path.getsize(zip_path) / (1024 * 1024)
-        log.append(f"  [3/8] Backing up HIP ..... {zip_size:.2f} MB")
+        log.append(f"  [3/9] Backing up HIP ..... {zip_size:.2f} MB")
 
         # 4. Get stage from input
         input_node = node.inputs()[0] if node.inputs() else None
@@ -625,7 +631,7 @@ def on_package_clicked(kwargs):
 
         # 5. Audit (read-only — live LOP stage layer is not editable)
         report = audit_stage(stage)
-        log.append(f"  [4/8] Auditing stage ...... PASS")
+        log.append(f"  [4/9] Auditing stage ...... PASS")
 
         # Warn (and optionally block) if no AOVs are configured
         if report.products_missing_vars:
@@ -669,7 +675,7 @@ def on_package_clicked(kwargs):
             frame_end=frame_end,
         )
         edit_stage.GetRootLayer().Save()
-        log.append(f"  [5/8] Injecting paths ..... DONE")
+        log.append(f"  [5/9] Injecting paths ..... DONE")
         bake_dir = os.path.join(staging_dir, "baked")
         baked, failed, shader_opdef_map = _bake_houdini_paths(
             flat_path, bake_dir, frame_range=(frame_start, frame_end)
@@ -710,7 +716,7 @@ def on_package_clicked(kwargs):
         create_usdz(flat_path, usdz_path)
         shutil.rmtree(staging_dir, ignore_errors=True)
         usdz_size = os.path.getsize(usdz_path) / (1024 * 1024)
-        log.append(f"  [6/8] Creating USDZ ....... {usdz_size:.2f} MB")
+        log.append(f"  [6/9] Creating USDZ ....... {usdz_size:.2f} MB")
 
         # 8. Write wrapper
         wrapper_filename = DEFAULT_WRAPPER_FILENAME.format(shot_name=shot_name)
@@ -723,9 +729,11 @@ def on_package_clicked(kwargs):
             log.append(f"        Restored {len(shader_opdef_map)} shader opdef: URI(s)")
         if udim_overrides:
             log.append(f"        Overrode {len(udim_overrides)} UDIM path(s) in wrapper")
-        log.append(f"  [7/8] Writing wrapper ..... DONE")
+        log.append(f"  [7/9] Writing wrapper ..... DONE")
 
-        # 8b. Write render_info.txt for farm scripts
+        # 8. Write render script + render_info.txt
+        from src.render_script_writer import write_render_script
+
         render_info_path = os.path.join(shot_dir, "render_info.txt")
         frame_count = frame_end - frame_start + 1
         with open(render_info_path, "w") as f:
@@ -733,6 +741,16 @@ def on_package_clicked(kwargs):
             f.write(f"endframe={frame_end}\n")
             f.write(f"framecount={frame_count}\n")
             f.write(f"usdfile=Scenes/{wrapper_filename}\n")
+
+        render_script_path = os.path.join(shot_dir, "Scripts", "run_render.sh")
+        write_render_script(
+            output_path=render_script_path,
+            shot_name=shot_name,
+            wrapper_filename=wrapper_filename,
+            frame_start=frame_start,
+            frame_end=frame_end,
+        )
+        log.append(f"  [8/9] Writing render script DONE")
 
         # 9. Write manifest
         manifest_path = os.path.join(shot_dir, f"{shot_name}_manifest.txt")
@@ -751,7 +769,7 @@ def on_package_clicked(kwargs):
             elapsed_seconds=elapsed,
         )
         write_manifest(manifest_path, manifest_data)
-        log.append(f"  [8/8] Writing manifest .... DONE")
+        log.append(f"  [9/9] Writing manifest .... DONE")
 
         # Warnings
         if report.warnings:
@@ -766,6 +784,7 @@ def on_package_clicked(kwargs):
         log.append(f"    HIP zip:  {zip_path}")
         log.append(f"    USDZ:     {usdz_path}")
         log.append(f"    Wrapper:  {wrapper_path}")
+        log.append(f"    Script:   {render_script_path}")
         log.append(f"    Info:     {render_info_path}")
         log.append(f"    Manifest: {manifest_path}")
 

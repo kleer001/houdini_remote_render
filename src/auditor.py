@@ -13,6 +13,8 @@ class AuditReport:
     has_camera: bool = False
     has_render_products: bool = False
     has_render_vars: bool = False
+    has_lights: bool = False
+    light_count: int = 0
     products_missing_vars: list[str] = field(default_factory=list)
     vex_shaders: list[str] = field(default_factory=list)
     resolution_mismatches: list[str] = field(default_factory=list)
@@ -43,6 +45,7 @@ def audit_stage(stage) -> AuditReport:
             report.has_render_vars = True
 
     report.instance_count = check_instance_density(stage)
+    report.has_lights, report.light_count = check_lights(stage)
     report.vex_shaders = check_vex_shaders(stage)
     report.resolution_mismatches = check_resolution_mismatches(stage)
     report.camera_mismatch = check_render_camera(stage)
@@ -70,6 +73,11 @@ def audit_stage(stage) -> AuditReport:
     if report.resolution_mismatches:
         for msg in report.resolution_mismatches:
             report.warnings.append(msg)
+    if not report.has_lights:
+        report.warnings.append(
+            "No lights found. Standalone husk has no default headlight — "
+            "the render will be black."
+        )
     if report.instance_count > 1_000_000:
         report.warnings.append(
             f"High instance count ({report.instance_count:,}). "
@@ -221,6 +229,25 @@ def ensure_camera(stage) -> None:
         if prim.GetTypeName() == "Camera":
             return
     # No camera found — caller should handle the warning via AuditReport
+
+
+def check_lights(stage) -> tuple[bool, int]:
+    """Count light prims in the stage.
+
+    Returns (has_lights, light_count).
+    """
+    light_types = {
+        "DomeLight", "RectLight", "SphereLight", "DiskLight",
+        "CylinderLight", "DistantLight", "PortalLight",
+        # USD 23.08+ renamed light types
+        "DomeLight_1", "RectLight_1", "SphereLight_1",
+        "DiskLight_1", "CylinderLight_1", "DistantLight_1",
+    }
+    count = 0
+    for prim in stage.Traverse():
+        if prim.GetTypeName() in light_types:
+            count += 1
+    return count > 0, count
 
 
 def check_instance_density(stage) -> int:

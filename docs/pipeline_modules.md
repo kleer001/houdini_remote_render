@@ -12,6 +12,7 @@
 | `output_injector` | RenderProduct output path authoring (format + frame tokens) |
 | `packager` | Stage flatten + USDZ creation |
 | `wrapper_writer` | Thin `.usda` wrapper with cache references |
+| `render_script_writer` | Generate `run_render.sh` husk launcher with smart defaults |
 | `manifest` | Human-readable packaging report |
 
 ## Remote File Cache
