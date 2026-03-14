@@ -8,7 +8,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from src.platform_utils import get_imaketx_path, ensure_dir
+from src.platform_utils import get_imaketx_path, get_iconvert_path, ensure_dir
 from src.classifier import expand_udim_pattern
 
 # Extensions that are already optimal and don't need conversion
@@ -138,3 +138,136 @@ def convert_udim_set(
     src_stem = Path(pattern.replace("<UDIM>", "UDIM_PLACEHOLDER")).stem
     new_stem = src_stem.replace("UDIM_PLACEHOLDER", "<UDIM>")
     return os.path.join(dst_dir, new_stem + ext)
+
+
+# USDZ only allows PNG, JPEG, EXR, and AVIF textures.
+# .rat (Houdini native) must be converted before bundling.
+USDZ_ALLOWED_EXTENSIONS = frozenset([
+    ".png", ".jpg", ".jpeg", ".exr", ".avif",
+])
+
+
+def convert_rat_for_usdz(flat_usda_path: str, staging_dir: str) -> list[tuple[str, str]]:
+    """Convert .rat textures to .exr so they can be bundled in USDZ.
+
+    Scans the flattened USD layer for .rat asset paths, converts each
+    to .exr using iconvert, and rewrites paths in the layer.
+
+    Args:
+        flat_usda_path: Path to the flattened .usda file.
+        staging_dir: Directory for converted texture files.
+
+    Returns:
+        List of (original_path, converted_path) tuples.
+    """
+    from pxr import Sdf, UsdUtils
+
+    layer = Sdf.Layer.FindOrOpen(flat_usda_path)
+
+    # Collect .rat paths
+    rat_paths = set()
+    def _collect(path):
+        if path and os.path.splitext(path)[1].lower() == ".rat":
+            rat_paths.add(path)
+        return path
+    UsdUtils.ModifyAssetPaths(layer, _collect)
+
+    if not rat_paths:
+        return []
+
+    iconvert = get_iconvert_path()
+    tex_dir = os.path.join(staging_dir, "textures_exr")
+    ensure_dir(tex_dir)
+
+    converted = []
+    path_map = {}
+    for rat_path in sorted(rat_paths):
+        if not os.path.isfile(rat_path):
+            continue
+        exr_name = Path(rat_path).stem + ".exr"
+        exr_path = os.path.join(tex_dir, exr_name)
+        result = subprocess.run(
+            [iconvert, rat_path, exr_path],
+            capture_output=True, text=True, shell=False,
+        )
+        if result.returncode == 0 and os.path.isfile(exr_path):
+            path_map[rat_path] = exr_path
+            converted.append((rat_path, exr_path))
+
+    # Rewrite paths in the layer
+    if path_map:
+        def _rewrite(path):
+            return path_map.get(path, path)
+        UsdUtils.ModifyAssetPaths(layer, _rewrite)
+        layer.Save()
+
+    return converted
+
+
+def extract_udim_for_usdz(
+    flat_usda_path: str,
+    textures_dir: str,
+) -> list[tuple[str, str, str]]:
+    """Extract UDIM textures as loose files for standalone husk.
+
+    USDZ archives can't resolve UDIM patterns (<UDIM> token) because the
+    UDIM resolver needs to scan a directory for matching tiles. This function
+    copies UDIM tile files to a loose directory and collects the prim/attr
+    info needed to override paths in the wrapper USDA.
+
+    Args:
+        flat_usda_path: Path to the flattened .usda file.
+        textures_dir: Shot Textures/ directory for loose tile files.
+
+    Returns:
+        List of (prim_path, attr_name, relative_udim_pattern) tuples
+        for the wrapper writer to override.
+    """
+    import glob
+    import shutil
+    from pxr import Sdf
+
+    layer = Sdf.Layer.FindOrOpen(flat_usda_path)
+
+    # Walk all prims/attrs looking for <UDIM> asset paths
+    udim_overrides = []  # (prim_path, attr_name, new_relative_pattern)
+    seen_patterns = {}   # original_pattern -> relative_pattern (dedup copies)
+
+    def _walk(prim_spec):
+        for attr in prim_spec.attributes:
+            val = attr.default
+            if not isinstance(val, Sdf.AssetPath):
+                continue
+            path_str = val.path
+            if "<UDIM>" not in path_str:
+                continue
+
+            if path_str not in seen_patterns:
+                # Resolve actual tile files on disk
+                glob_pattern = path_str.replace("<UDIM>", "[0-9][0-9][0-9][0-9]")
+                tiles = sorted(glob.glob(glob_pattern))
+
+                if tiles:
+                    ensure_dir(textures_dir)
+                    for tile in tiles:
+                        dst = os.path.join(textures_dir, os.path.basename(tile))
+                        if os.path.abspath(tile) != os.path.abspath(dst):
+                            shutil.copy2(tile, dst)
+
+                    # Build relative pattern from Scenes/ to Textures/
+                    base_name = os.path.basename(path_str)
+                    rel_pattern = f"../Textures/{base_name}"
+                    seen_patterns[path_str] = rel_pattern
+
+            if path_str in seen_patterns:
+                udim_overrides.append(
+                    (str(prim_spec.path), attr.name, seen_patterns[path_str])
+                )
+
+        for child in prim_spec.nameChildren:
+            _walk(child)
+
+    for prim in layer.rootPrims:
+        _walk(prim)
+
+    return udim_overrides

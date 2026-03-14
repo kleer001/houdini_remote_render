@@ -149,11 +149,12 @@ def _bake_op(op_path, bake_dir, frame_range=None):
         safe_name = clean_path.strip("/").replace("/", "__")
         cat = node.type().category()
 
-        # --- COP: render to .png via temp rop_image ---
-        # copNodeTypeCategory = new COPs (H21+ Solaris), cop2 = legacy COP2
+        # --- COP: render to .png via temp ROP ---
+        # cop2 (legacy COP2) uses rop_comp; Cop (Copernicus) uses rop_image
         if cat in (hou.copNodeTypeCategory(), hou.cop2NodeTypeCategory()):
             copnet = node.parent()
-            rop = copnet.createNode("rop_image", "tmp_bake_rop")
+            rop_type = "rop_comp" if cat == hou.cop2NodeTypeCategory() else "rop_image"
+            rop = copnet.createNode(rop_type, "tmp_bake_rop")
             try:
                 rop.parm("coppath").set(f"../{node.name()}")
 
@@ -683,6 +684,19 @@ def on_package_clicked(kwargs):
             for orig, reason in failed:
                 log.append(f"          {orig[:80]}")
 
+        # Convert .rat textures to .exr for USDZ compatibility
+        from src.converter import convert_rat_for_usdz, extract_udim_for_usdz
+        rat_converted = convert_rat_for_usdz(flat_path, staging_dir)
+        if rat_converted:
+            log.append(f"        Converted {len(rat_converted)} .rat textures to .exr for USDZ")
+
+        # Extract UDIM tiles as loose files (USDZ can't resolve <UDIM> patterns)
+        textures_dir = os.path.join(shot_dir, "Textures")
+        udim_overrides = extract_udim_for_usdz(flat_path, textures_dir)
+        if udim_overrides:
+            patterns = set(p for _, _, p in udim_overrides)
+            log.append(f"        Extracted {len(patterns)} UDIM set(s) to Textures/")
+
         scenes_dir = os.path.join(shot_dir, "Scenes")
         usdz_filename = DEFAULT_USDZ_FILENAME.format(shot_name=shot_name)
         usdz_path = os.path.join(scenes_dir, usdz_filename)
@@ -703,9 +717,12 @@ def on_package_clicked(kwargs):
         wrapper_path = os.path.join(scenes_dir, wrapper_filename)
 
         write_wrapper(usdz_filename, {}, wrapper_path,
-                      shader_opdef_map=shader_opdef_map)
+                      shader_opdef_map=shader_opdef_map,
+                      udim_overrides=udim_overrides)
         if shader_opdef_map:
             log.append(f"        Restored {len(shader_opdef_map)} shader opdef: URI(s)")
+        if udim_overrides:
+            log.append(f"        Overrode {len(udim_overrides)} UDIM path(s) in wrapper")
         log.append(f"  [7/8] Writing wrapper ..... DONE")
 
         # 8b. Write render_info.txt for farm scripts

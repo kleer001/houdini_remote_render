@@ -91,6 +91,18 @@ def run_pipeline(
     edit_stage.GetRootLayer().Save()
     log.append(f"Output paths injected (format: {output_format}, frames: {frame_start}-{frame_end})")
 
+    # Convert .rat textures to .exr for USDZ compatibility
+    from src.converter import convert_rat_for_usdz, extract_udim_for_usdz
+    rat_converted = convert_rat_for_usdz(flat_path, staging_dir)
+    if rat_converted:
+        log.append(f"Converted {len(rat_converted)} .rat textures to .exr for USDZ")
+
+    # Extract UDIM tiles as loose files (USDZ can't resolve <UDIM> patterns)
+    textures_dir = os.path.join(shot_dir, "Textures")
+    udim_overrides = extract_udim_for_usdz(flat_path, textures_dir)
+    if udim_overrides:
+        log.append(f"Extracted UDIM tiles to Textures/")
+
     scenes_dir = os.path.join(shot_dir, "Scenes")
     usdz_path = os.path.join(scenes_dir, usdz_filename)
     create_usdz(flat_path, usdz_path)
@@ -100,7 +112,7 @@ def run_pipeline(
 
     # 6. Wrapper
     wrapper_path = os.path.join(scenes_dir, wrapper_filename)
-    write_wrapper(usdz_filename, {}, wrapper_path)
+    write_wrapper(usdz_filename, {}, wrapper_path, udim_overrides=udim_overrides)
     log.append(f"Wrapper: {wrapper_path}")
     # Note: headless pipeline doesn't bake Houdini paths, so no shader
     # opdef: restoration needed here (the stage comes from a LOP network

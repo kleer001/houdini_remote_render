@@ -38,6 +38,36 @@ def get_imaketx_path() -> str:
     return path
 
 
+def get_iconvert_path() -> str:
+    """Locate iconvert inside $HFS/bin/.
+
+    Returns the full path to the iconvert executable.
+    Raises RuntimeError if not found.
+    """
+    try:
+        import hou
+        hfs = hou.expandString("$HFS")
+    except ImportError:
+        hfs = os.environ.get("HFS", "")
+
+    if not hfs:
+        raise RuntimeError(
+            "Cannot locate iconvert: $HFS is not set. "
+            "Are you running inside Houdini?"
+        )
+
+    name = "iconvert.exe" if platform.system() == "Windows" else "iconvert"
+    path = os.path.join(hfs, "bin", name)
+
+    if not os.path.isfile(path):
+        raise RuntimeError(
+            f"iconvert not found at {path}. "
+            f"Expected it inside $HFS/bin/ (HFS={hfs})."
+        )
+
+    return path
+
+
 def normalize_path(p: str) -> str:
     """Resolve and return a POSIX-style path string.
 
