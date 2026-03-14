@@ -140,13 +140,6 @@ def convert_udim_set(
     return os.path.join(dst_dir, new_stem + ext)
 
 
-# USDZ only allows PNG, JPEG, EXR, and AVIF textures.
-# .rat (Houdini native) must be converted before bundling.
-USDZ_ALLOWED_EXTENSIONS = frozenset([
-    ".png", ".jpg", ".jpeg", ".exr", ".avif",
-])
-
-
 def convert_rat_for_usdz(flat_usda_path: str, staging_dir: str) -> list[tuple[str, str]]:
     """Convert .rat textures to .exr so they can be bundled in USDZ.
 
@@ -183,16 +176,22 @@ def convert_rat_for_usdz(flat_usda_path: str, staging_dir: str) -> list[tuple[st
     path_map = {}
     for rat_path in sorted(rat_paths):
         if not os.path.isfile(rat_path):
-            continue
+            raise FileNotFoundError(
+                f".rat texture referenced in USD but missing on disk: {rat_path}"
+            )
         exr_name = Path(rat_path).stem + ".exr"
         exr_path = os.path.join(tex_dir, exr_name)
         result = subprocess.run(
             [iconvert, rat_path, exr_path],
             capture_output=True, text=True, shell=False,
         )
-        if result.returncode == 0 and os.path.isfile(exr_path):
-            path_map[rat_path] = exr_path
-            converted.append((rat_path, exr_path))
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"iconvert failed for {rat_path}: "
+                f"{result.stderr.strip() or result.stdout.strip()}"
+            )
+        path_map[rat_path] = exr_path
+        converted.append((rat_path, exr_path))
 
     # Rewrite paths in the layer
     if path_map:

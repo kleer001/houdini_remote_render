@@ -33,45 +33,32 @@ def write_wrapper(
     # Add USDZ as a sublayer
     root_layer.subLayerPaths.append(usdz_relative_path)
 
+    def _set_asset_override(prim_path, attr_name, value):
+        """Get-or-create an Over prim spec and set an Asset attribute."""
+        prim_spec = root_layer.GetPrimAtPath(prim_path)
+        if prim_spec is None:
+            prim_spec = Sdf.CreatePrimInLayer(root_layer, prim_path)
+            prim_spec.specifier = Sdf.SpecifierOver
+        attr_spec = Sdf.AttributeSpec(
+            prim_spec, attr_name, Sdf.ValueTypeNames.Asset
+        )
+        attr_spec.default = Sdf.AssetPath(value)
+
     # Author cache path overrides
     for prim_path, cache_rel_path in cache_path_map.items():
-        prim = stage.OverridePrim(prim_path)
-        if prim:
-            prim_spec = root_layer.GetPrimAtPath(prim_path)
-            if prim_spec is None:
-                prim_spec = Sdf.CreatePrimInLayer(root_layer, prim_path)
-
-            attr_spec = Sdf.AttributeSpec(
-                prim_spec, "filePath", Sdf.ValueTypeNames.Asset
-            )
-            attr_spec.default = cache_rel_path
+        stage.OverridePrim(prim_path)
+        _set_asset_override(prim_path, "filePath", cache_rel_path)
 
     # Restore shader opdef: URIs so husk resolves VEX through OTL system.
     # The USDZ has baked VFL files (needed for packaging), but husk needs
     # the original opdef: path to trigger VEX compilation via VEX_VexResolver.
     for prim_path, opdef_uri in (shader_opdef_map or {}).items():
-        prim_spec = root_layer.GetPrimAtPath(prim_path)
-        if prim_spec is None:
-            prim_spec = Sdf.CreatePrimInLayer(root_layer, prim_path)
-            prim_spec.specifier = Sdf.SpecifierOver
-
-        attr_spec = Sdf.AttributeSpec(
-            prim_spec, "info:sourceAsset", Sdf.ValueTypeNames.Asset
-        )
-        attr_spec.default = Sdf.AssetPath(opdef_uri)
+        _set_asset_override(prim_path, "info:sourceAsset", opdef_uri)
 
     # Override UDIM texture paths to point to loose tile files.
     # USDZ archives can't resolve <UDIM> patterns because the resolver
     # needs to scan a directory for matching tiles.
     for prim_path, attr_name, rel_pattern in (udim_overrides or []):
-        prim_spec = root_layer.GetPrimAtPath(prim_path)
-        if prim_spec is None:
-            prim_spec = Sdf.CreatePrimInLayer(root_layer, prim_path)
-            prim_spec.specifier = Sdf.SpecifierOver
-
-        attr_spec = Sdf.AttributeSpec(
-            prim_spec, attr_name, Sdf.ValueTypeNames.Asset
-        )
-        attr_spec.default = Sdf.AssetPath(rel_pattern)
+        _set_asset_override(prim_path, attr_name, rel_pattern)
 
     root_layer.Save()
