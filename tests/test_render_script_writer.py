@@ -262,6 +262,8 @@ class TestWriteRenderScript:
                 content = f.read()
             assert "/opt/hfs21.0" in content
             assert "houdini_setup_bash" in content
+            # Always sources, even if $HFS is already set
+            assert "_HFS=" in content
 
     def test_no_hfs_path_includes_fallback_comment(self):
         """When HFS not detected, script notes husk must be on PATH."""

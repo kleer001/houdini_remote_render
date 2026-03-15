@@ -96,19 +96,21 @@ def write_render_script(
 
     flags_str = " \\\n    ".join(flags)
 
-    # Build HFS setup block
+    # Build HFS setup block — always source to get full environment
     if hfs_path:
         hfs_block = f"""
 # Source Houdini environment
-if [ -z "$HFS" ]; then
-    cd "{hfs_path}"
+_HFS="${{HFS:-{hfs_path}}}"
+_SHOT_ROOT="$(pwd)"
+if [ -d "$_HFS" ]; then
+    cd "$_HFS"
     source ./houdini_setup_bash
-    cd - > /dev/null
+    cd "$_SHOT_ROOT"
 fi
 """
     else:
         hfs_block = """
-# HFS not set at packaging time — husk must be on PATH
+# HFS not known at packaging time — husk must be on PATH
 """
 
     script = f"""#!/bin/bash
