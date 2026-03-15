@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 260" width="900" height="260">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;600&amp;display=swap');
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="260" rx="12" fill="#ffffff"/>
+  <rect width="900" height="260" rx="12" fill="none" stroke="#e0e0e0" stroke-width="1"/>
+
+  <!-- Logo: Top-down view of wrapped present -->
+  <g transform="translate(50, 30)">
+    <!-- Circle background -->
+    <circle cx="100" cy="100" r="94" fill="#1a1a1a"/>
+
+    <!-- Box + bow scaled to 80%, centered on (100,100) -->
+    <g transform="translate(100, 100) scale(0.8) translate(-100, -100)">
+      <!-- Box top face (square, seen from above) -->
+      <rect x="32" y="32" width="136" height="136" rx="4" fill="#2a2a2a" stroke="#E8600A" stroke-width="4"/>
+
+      <!-- Vertical ribbon (top-down = running up/down) -->
+      <rect x="92" y="32" width="16" height="136" fill="#E8600A" rx="1"/>
+
+      <!-- Horizontal ribbon (top-down = running left/right) -->
+      <rect x="32" y="92" width="136" height="16" fill="#E8600A" rx="1"/>
+
+      <!-- Ribbon intersection - slightly darker -->
+      <rect x="92" y="92" width="16" height="16" fill="#cc5208" rx="1"/>
+
+      <!-- Bow - top-down view (4 petal loops radiating from center) -->
+      <!-- Top loop -->
+      <ellipse cx="100" cy="74" rx="12" ry="18" fill="#E8600A" stroke="#1a1a1a" stroke-width="1.5"/>
+      <!-- Bottom loop -->
+      <ellipse cx="100" cy="126" rx="12" ry="18" fill="#E8600A" stroke="#1a1a1a" stroke-width="1.5"/>
+      <!-- Left loop -->
+      <ellipse cx="74" cy="100" rx="18" ry="12" fill="#E8600A" stroke="#1a1a1a" stroke-width="1.5"/>
+      <!-- Right loop -->
+      <ellipse cx="126" cy="100" rx="18" ry="12" fill="#E8600A" stroke="#1a1a1a" stroke-width="1.5"/>
+
+      <!-- Diagonal loops for fullness -->
+      <!-- Top-left -->
+      <ellipse cx="82" cy="82" rx="10" ry="16" fill="#cc5208" stroke="#1a1a1a" stroke-width="1" transform="rotate(-45 82 82)"/>
+      <!-- Top-right -->
+      <ellipse cx="118" cy="82" rx="10" ry="16" fill="#cc5208" stroke="#1a1a1a" stroke-width="1" transform="rotate(45 118 82)"/>
+      <!-- Bottom-left -->
+      <ellipse cx="82" cy="118" rx="10" ry="16" fill="#cc5208" stroke="#1a1a1a" stroke-width="1" transform="rotate(45 82 118)"/>
+      <!-- Bottom-right -->
+      <ellipse cx="118" cy="118" rx="10" ry="16" fill="#cc5208" stroke="#1a1a1a" stroke-width="1" transform="rotate(-45 118 118)"/>
+
+      <!-- Center knot -->
+      <circle cx="100" cy="100" r="8" fill="#E8600A" stroke="#1a1a1a" stroke-width="1.5"/>
+      <circle cx="100" cy="100" r="4" fill="#cc5208"/>
+    </g>
+
+    <!-- Circle border -->
+    <circle cx="100" cy="100" r="94" stroke="#E8600A" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- Project name -->
+  <text x="290" y="80" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="36" fill="#1a1a1a" letter-spacing="1">Houdini Remote Render</text>
+
+  <!-- Tagline line 1 -->
+  <text x="290" y="140" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="28" fill="#E8600A">Package it. Ship it. Render it.</text>
+
+  <!-- Tagline line 2 -->
+  <text x="290" y="185" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="300" font-size="20" fill="#555555">Portable render packages. No farm required.</text>
+
+  <!-- Subtle bottom accent line -->
+  <rect x="290" y="210" width="120" height="2" rx="1" fill="#E8600A" opacity="0.6"/>
+</svg>

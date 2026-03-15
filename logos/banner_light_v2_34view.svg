@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 260" width="900" height="260">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;600&amp;display=swap');
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="260" rx="12" fill="#ffffff"/>
+  <rect width="900" height="260" rx="12" fill="none" stroke="#e0e0e0" stroke-width="1"/>
+
+  <!-- Logo: 3/4 view wrapped present -->
+  <g transform="translate(50, 30)">
+    <!-- Circle background -->
+    <circle cx="100" cy="100" r="94" fill="#1a1a1a"/>
+
+    <!-- Box body - 3/4 perspective (parallelogram) -->
+    <!-- Front face -->
+    <polygon points="55,85 115,85 115,160 55,160" fill="#2a2a2a" stroke="#E8600A" stroke-width="3.5"/>
+    <!-- Right face -->
+    <polygon points="115,85 155,70 155,145 115,160" fill="#1a1a1a" stroke="#E8600A" stroke-width="3.5"/>
+    <!-- Top face of box (visible because of 3/4 angle) -->
+    <polygon points="55,85 95,70 155,70 115,85" fill="#222222" stroke="#E8600A" stroke-width="3.5"/>
+
+    <!-- Lid - 3/4 perspective -->
+    <!-- Front face -->
+    <polygon points="49,72 121,72 121,85 49,85" fill="#2a2a2a" stroke="#E8600A" stroke-width="3.5"/>
+    <!-- Right face -->
+    <polygon points="121,72 161,57 161,70 121,85" fill="#1a1a1a" stroke="#E8600A" stroke-width="3.5"/>
+    <!-- Top face -->
+    <polygon points="49,72 89,57 161,57 121,72" fill="#222222" stroke="#E8600A" stroke-width="3.5"/>
+
+    <!-- Vertical ribbon - front face -->
+    <polygon points="78,72 92,72 92,160 78,160" fill="#E8600A"/>
+    <!-- Vertical ribbon - right face -->
+    <polygon points="131,57 143,57 143,145 131,145" fill="#cc5208"/>
+    <!-- Vertical ribbon - top face -->
+    <polygon points="78,72 92,72 143,57 131,57" fill="#E8600A" opacity="0.7"/>
+
+    <!-- Horizontal ribbon - front face -->
+    <rect x="49" y="110" width="72" height="14" fill="#E8600A"/>
+    <!-- Horizontal ribbon - right face -->
+    <polygon points="121,110 161,95 161,109 121,124" fill="#cc5208"/>
+
+    <!-- Bow - left loop -->
+    <ellipse cx="75" cy="52" rx="16" ry="12" fill="none" stroke="#E8600A" stroke-width="3.5" transform="rotate(-10 75 52)"/>
+    <!-- Bow - right loop (angled for perspective) -->
+    <ellipse cx="110" cy="48" rx="14" ry="11" fill="none" stroke="#E8600A" stroke-width="3.5" transform="rotate(20 110 48)"/>
+    <!-- Bow - center knot -->
+    <ellipse cx="93" cy="56" rx="6" ry="5" fill="#E8600A"/>
+
+    <!-- Circle border -->
+    <circle cx="100" cy="100" r="94" stroke="#E8600A" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- Project name -->
+  <text x="290" y="80" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="36" fill="#1a1a1a" letter-spacing="1">Houdini Remote Render</text>
+
+  <!-- Tagline line 1 -->
+  <text x="290" y="140" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="28" fill="#E8600A">Package it. Ship it. Render it.</text>
+
+  <!-- Tagline line 2 -->
+  <text x="290" y="185" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="300" font-size="20" fill="#555555">Portable render packages. No farm required.</text>
+
+  <!-- Subtle bottom accent line -->
+  <rect x="290" y="210" width="120" height="2" rx="1" fill="#E8600A" opacity="0.6"/>
+</svg>

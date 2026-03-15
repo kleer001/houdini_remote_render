@@ -1,9 +1,13 @@
-# Houdini Remote Render & Cache
+<p align="center">
+  <img src="logos/banner_light_v6_svgrepo.svg" alt="Houdini Remote Render — Package it. Ship it. Render it." width="700"/>
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Houdini 21.0+](https://img.shields.io/badge/Houdini-21.0+-orange.svg)](https://www.sidefx.com/products/houdini/)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-green.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/Tests-103%20CI%20%2B%206%20render-brightgreen.svg)](#testing)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"/></a>
+  <a href="https://www.sidefx.com/products/houdini/"><img src="https://img.shields.io/badge/Houdini-21.0+-orange.svg" alt="Houdini 21.0+"/></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10+-green.svg" alt="Python 3.10+"/></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/Tests-103%20CI%20%2B%206%20render-brightgreen.svg" alt="Tests"/></a>
+</p>
 
 Package Houdini USD scenes into self-contained archives that render anywhere — no shared filesystems, no farm managers, no missing textures.
 

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 260" width="900" height="260">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;600&amp;display=swap');
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="260" rx="12" fill="#ffffff"/>
+  <rect width="900" height="260" rx="12" fill="none" stroke="#e0e0e0" stroke-width="1"/>
+
+  <!-- Logo: svgrepo gift box recolored -->
+  <g transform="translate(50, 30)">
+    <!-- Circle background -->
+    <circle cx="100" cy="100" r="94" fill="#1a1a1a"/>
+
+    <!-- Gift box SVG scaled and centered in circle -->
+    <g transform="translate(100, 100) scale(2.52) translate(-22.854, -22.854)">
+      <!-- Box body -->
+      <path d="M41.73,9.772c-1.232,0.934-2.752,1.446-4.308,1.446c-0.405,0-0.821-0.036-1.226-0.105l-4.366-0.76l1.683,4.451
+        c0.491,1.303,0.484,2.741-0.021,4.038l-1.421,3.654c-0.152,0.392-0.53,0.648-0.95,0.646s-0.795-0.278-0.944-0.673l-4.429-11.743
+        h-5.814L15.505,22.47c-0.148,0.395-0.524,0.662-0.944,0.664s-0.798-0.251-0.95-0.643l-1.421-3.653
+        c-0.504-1.297-0.511-2.733-0.019-4.035l1.682-4.452l-4.372,0.761c-0.399,0.069-0.808,0.104-1.214,0.104
+        c-1.554,0-3.068-0.511-4.302-1.445c-0.375,0.599-0.593,1.305-0.593,2.063v29.988c0,2.152,1.75,3.887,3.904,3.887h31.132
+        c2.153,0,3.928-1.732,3.928-3.887V11.835C42.336,11.077,42.105,10.371,41.73,9.772z" fill="#E8600A"/>
+      <!-- Left bow curl -->
+      <path d="M5.628,7.232c0.746,0.627,1.682,0.962,2.64,0.962c0.233,0,0.47-0.02,0.702-0.06l7.213-1.255V1.314L8.971,0.06
+        C8.738,0.02,8.502,0,8.27,0c-0.958,0-1.895,0.337-2.64,0.963c-0.926,0.777-1.46,1.926-1.46,3.135
+        C4.169,5.308,4.704,6.454,5.628,7.232z" fill="#E8600A"/>
+      <!-- Right bow curl -->
+      <path d="M37.42,8.194c0.958,0,1.894-0.335,2.638-0.962c0.926-0.778,1.459-1.925,1.459-3.135c0-1.209-0.537-2.357-1.461-3.135
+        C39.312,0.337,38.375,0,37.417,0c-0.233,0-0.458,0.02-0.69,0.061l-7.201,1.254V6.88l7.201,1.255
+        C36.958,8.175,37.187,8.194,37.42,8.194z" fill="#E8600A"/>
+      <!-- Center bow knot -->
+      <path d="M19.622,7.742h6.44c0.231,0,0.41-0.193,0.41-0.425V0.878c0-0.232-0.178-0.437-0.41-0.437h-6.44
+        c-0.231,0-0.451,0.204-0.451,0.437v6.439C19.17,7.549,19.39,7.742,19.622,7.742z" fill="#E8600A"/>
+    </g>
+
+    <!-- Circle border -->
+    <circle cx="100" cy="100" r="94" stroke="#E8600A" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- Project name -->
+  <text x="290" y="80" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="36" fill="#1a1a1a" letter-spacing="1">Houdini Remote Render</text>
+
+  <!-- Tagline line 1 -->
+  <text x="290" y="140" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="28" fill="#E8600A">Package it. Ship it. Render it.</text>
+
+  <!-- Tagline line 2 -->
+  <text x="290" y="185" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="300" font-size="20" fill="#555555">Portable render packages. No farm required.</text>
+
+  <!-- Subtle bottom accent line -->
+  <rect x="290" y="210" width="120" height="2" rx="1" fill="#E8600A" opacity="0.6"/>
+</svg>

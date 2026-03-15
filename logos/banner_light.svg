@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 260" width="900" height="260">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;600&amp;display=swap');
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="260" rx="12" fill="#ffffff"/>
+  <rect width="900" height="260" rx="12" fill="none" stroke="#e0e0e0" stroke-width="1"/>
+
+  <!-- Logo: Black and orange wrapped present -->
+  <g transform="translate(50, 30)">
+    <!-- Circle background -->
+    <circle cx="100" cy="100" r="94" fill="#1a1a1a"/>
+
+    <!-- Gift box body -->
+    <rect x="50" y="75" width="100" height="80" rx="4" fill="#1a1a1a" stroke="#E8600A" stroke-width="4"/>
+
+    <!-- Gift box lid -->
+    <rect x="44" y="60" width="112" height="20" rx="4" fill="#1a1a1a" stroke="#E8600A" stroke-width="4"/>
+
+    <!-- Vertical ribbon -->
+    <rect x="92" y="60" width="16" height="95" fill="#E8600A" rx="1"/>
+
+    <!-- Horizontal ribbon -->
+    <rect x="44" y="95" width="112" height="16" fill="#E8600A" rx="1"/>
+
+    <!-- Bow - left loop -->
+    <ellipse cx="82" cy="52" rx="18" ry="14" fill="none" stroke="#E8600A" stroke-width="4" transform="rotate(-15 82 52)"/>
+
+    <!-- Bow - right loop -->
+    <ellipse cx="118" cy="52" rx="18" ry="14" fill="none" stroke="#E8600A" stroke-width="4" transform="rotate(15 118 52)"/>
+
+    <!-- Bow - center knot -->
+    <circle cx="100" cy="58" r="6" fill="#E8600A"/>
+
+    <!-- Circle border -->
+    <circle cx="100" cy="100" r="94" stroke="#E8600A" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- Project name -->
+  <text x="290" y="80" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="36" fill="#1a1a1a" letter-spacing="1">Houdini Remote Render</text>
+
+  <!-- Tagline line 1 -->
+  <text x="290" y="140" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="28" fill="#E8600A">Package it. Ship it. Render it.</text>
+
+  <!-- Tagline line 2 -->
+  <text x="290" y="185" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="300" font-size="20" fill="#555555">Portable render packages. No farm required.</text>
+
+  <!-- Subtle bottom accent line -->
+  <rect x="290" y="210" width="120" height="2" rx="1" fill="#E8600A" opacity="0.6"/>
+</svg>
