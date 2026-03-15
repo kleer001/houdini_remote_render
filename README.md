@@ -172,6 +172,37 @@ python install.py --uninstall       # Remove
 
 </details>
 
+<details>
+<summary>Recompiling for a different license</summary>
+
+The shipped HDAs use the `.hdalc` (Indie) extension. If you're on a different Houdini license, recompile them with `hotl`:
+
+```bash
+cd /path/to/houdini_remote_render/hda
+
+# Commercial / FX  (.hdalc → .hda)
+hotl -l karma_usd_packager.hdalc temp_dir && hotl -c temp_dir karma_usd_packager.hda && rm -rf temp_dir
+hotl -l remote_file_cache.hdalc temp_dir && hotl -c temp_dir remote_file_cache.hda && rm -rf temp_dir
+
+# Apprentice  (.hdalc → .hdanc)
+hotl -l karma_usd_packager.hdalc temp_dir && hotl -c temp_dir karma_usd_packager.hdanc && rm -rf temp_dir
+hotl -l remote_file_cache.hdalc temp_dir && hotl -c temp_dir remote_file_cache.hdanc && rm -rf temp_dir
+```
+
+Then update `HOUDINI_OTLSCAN_PATH` or your package file if necessary — Houdini scans by extension, so the new files will be picked up automatically from the same `hda/` directory. Restart Houdini after recompiling.
+
+`hotl` is in `$HFS/bin/`. Common locations:
+
+| OS | Typical path |
+|---|---|
+| **Linux** | `/opt/hfs21.0/bin/hotl` |
+| **macOS** | `/Applications/Houdini/Current/Frameworks/Houdini.framework/Versions/Current/Resources/bin/hotl` |
+| **Windows** | `C:\Program Files\Side Effects Software\Houdini 21.0\bin\hotl.exe` |
+
+If `hotl` is not on your PATH, source the Houdini environment first: `cd $HFS && source houdini_setup_bash` (Linux/macOS) or run the Houdini Command Line Tools shortcut (Windows).
+
+</details>
+
 ## Updating
 
 HDAs load directly from the cloned repo, so updating is just a `git pull`:
