@@ -49,16 +49,18 @@ get_redshift_binary(name) -> str    # e.g. "redshiftUsdCmdLine", "redshiftTextur
 redshift_env_block() -> str         # bash snippet: export REDSHIFT_COREDATAPATH, PATH, license
 ```
 
-### 0.2 `output_injector.py` — Verify `<F4>` token portability
+### 0.2 `output_injector.py` — `<F4>` token confirmed compatible
 
-The `<F4>` frame token is documented as husk-native. Need to confirm whether
-`redshiftUsdCmdLine` also expands it (likely yes — it uses the same USD
-`RenderProduct.productName` convention). If not, Redshift uses `%04d` or a
-different token.
+**CONFIRMED:** `redshiftUsdCmdLine` uses the same USD-standard `<F4>`
+angle-bracket frame token in `productName` attributes. This is NOT
+Houdini's `$F4` (which is an expression variable). The existing
+`output_injector.py` already writes `<F4>` as a literal string via `Sdf`
+layer specs — this works as-is for Redshift.
 
-**Action:** Test with a minimal USD file. If `<F4>` doesn't work, add a
-`frame_token` parameter to `inject_output_paths()` (default `"<F4>"` for
-backward compatibility).
+Redshift 2025.2+ also supports `%d`-style printf format tokens, but `<F4>`
+is the standard and works across both husk and `redshiftUsdCmdLine`.
+
+**No changes needed** to `output_injector.py` for Redshift support.
 
 ### 0.3 `auditor.py` — Parameterize warning messages
 
@@ -322,68 +324,114 @@ pure USD — no changes needed.
 
 ## Gotchas & Risk Register
 
-### Confirmed risks:
+### Resolved (confirmed safe):
 
-1. **`<F4>` frame token** — This is documented as a husk-native token.
-   `redshiftUsdCmdLine` may or may not expand it. If it doesn't, output files
-   will all write to the same path, overwriting each frame.
-   **Mitigation:** Test early (Phase 0.2). Fall back to the `-oip` flag on the
-   command line to override output paths, bypassing `productName` entirely.
+- **`<F4>` frame token** — CONFIRMED WORKING. `redshiftUsdCmdLine` uses the
+  same USD-standard `<F4>` angle-bracket token in `productName`. The existing
+  `output_injector.py` writes this correctly. No changes needed.
 
-2. **Hydra 2.0 on Houdini 21** — Redshift's Hydra 2.0 support is recent
+- **CWD-relative `productName` paths** — CONFIRMED. Like husk,
+  `redshiftUsdCmdLine` resolves relative `productName` against CWD. The
+  existing `cd Scenes/` pattern in render scripts is correct.
+
+- **USDZ input** — CONFIRMED. `redshiftUsdCmdLine` accepts `.usdz` files
+  directly as of Redshift 2025.5. The wrapper `.usda` sublayering approach
+  also works via standard ArResolver.
+
+- **`-oip` vs `-oif` flags** — CLARIFIED. `-oip PATH` overrides the output
+  **folder** (not filename). `-oif EXT` overrides the output **format**. Both
+  work on `redshiftUsdCmdLine`. Useful as fallbacks but not needed if
+  `productName` works correctly.
+
+### Active risks:
+
+1. **Hydra 2.0 on Houdini 21** — Redshift's Hydra 2.0 support is recent
    (2026.3). The Solaris viewport may have issues even if
    `redshiftUsdCmdLine` works fine for batch rendering.
    **Mitigation:** The packager only needs the viewport working well enough to
    build the stage. Batch rendering via `redshiftUsdCmdLine` bypasses Hydra
    entirely.
 
-3. **`.rstexbin` side-by-side placement** — Unlike `imaketx` which can write
-   to an arbitrary output directory, `redshiftTextureProcessor` writes
-   `.rstexbin` next to the source file. If the source directory is read-only
-   (e.g., shared texture library), pre-conversion fails.
+2. **`.rstexbin` side-by-side placement** — `redshiftTextureProcessor` writes
+   `.rstexbin` next to the source file (same dir, same base name). If the
+   source directory is read-only (e.g., shared texture library), conversion
+   fails. Also: name collisions if `brick.jpg` and `brick.exr` coexist
+   (both produce `brick.rstexbin` — second overwrites first).
    **Mitigation:** Run the converter after `gatherer.py` stages textures into
-   the writable package directory.
+   the writable package directory. Warn on base-name collisions.
 
-4. **USDZ + Redshift textures** — Textures inside a USDZ archive can't have
-   `.rstexbin` siblings. Redshift would need to auto-convert at render time
-   from the packed textures.
+3. **USDZ + Redshift textures** — Textures inside a USDZ archive can't have
+   `.rstexbin` siblings. Redshift auto-converts at render time (~30s first-
+   frame overhead for scene translation + texture conversion).
    **Mitigation:** Accept the auto-conversion overhead for USDZ workflows, or
    use the wrapper + loose textures approach.
 
-5. **GPU requirement** — Unlike Karma CPU, Redshift always needs a GPU.
+4. **GPU requirement** — Unlike Karma CPU, Redshift always needs a GPU.
    The render script can't fall back to CPU if no GPU is found.
    **Mitigation:** Add a GPU availability check in the verify step (advisory
    warning). The render script should fail fast with a clear error if no GPU
    is detected.
 
-6. **Redshift licensing** — Requires `redshift_LICENSE=port@host` env var
+5. **Redshift licensing** — Requires `redshift_LICENSE=port@host` env var
    (note: lowercase `redshift`). Missing or misconfigured license = render
    fails silently or with cryptic errors.
    **Mitigation:** The render script should echo the license server address
    and verify connectivity before starting the render.
 
+6. **UsdPreviewSurface materials not supported** — USDZ files from external
+   sources (Sketchfab, Apple AR) use `UsdPreviewSurface` shaders. Redshift
+   cannot render these natively — it needs Redshift-specific materials.
+   **Mitigation:** The verify step should warn if `UsdPreviewSurface` shaders
+   are detected. For LOP workflows this is rare (users build Redshift
+   materials in Solaris), but worth flagging.
+
+7. **`RSProceduralUSD.so` manual install** — The Redshift USD Procedural
+   plugin must be manually copied into Redshift's `Procedurals/` directory,
+   matched to the correct USD version. Must be redone after each Redshift
+   version update.
+   **Mitigation:** Document in the HDA help. The verify step can check for
+   the procedural's presence if USD procedural prims are in the scene.
+
+8. **Animated attribute limitations** — When using single-process batch
+   rendering (all frames in one invocation), only object transforms and camera
+   moves update correctly. Animated point attributes, UV transforms, etc. may
+   render only the first frame's values.
+   **Mitigation:** Document this limitation. For scenes with animated
+   attributes, users should render with per-frame invocations (slower but
+   correct). Add a parm to control single-process vs per-frame rendering.
+
 ### Lower-risk items:
 
-7. **`redshiftUsdCmdLine` path variability** — Install path differs by OS and
-   custom installs. No standard `$REDSHIFT_COREDATAPATH` guarantee.
+9. **`redshiftUsdCmdLine` path variability** — Install path differs by OS and
+   custom installs. Linux default: `/usr/redshift`. No guarantee
+   `$REDSHIFT_COREDATAPATH` is set.
    **Mitigation:** `detect_redshift()` checks the env var, falls back to
-   common paths (`/opt/redshift`, `/usr/redshift`).
+   common paths (`/usr/redshift`, `/opt/redshift`).
 
-8. **OCIO config** — Redshift on the command line needs explicit OCIO config
-   if the scene uses OCIO color management. Houdini sets this automatically;
-   `redshiftUsdCmdLine` does not.
-   **Mitigation:** Add `ocio_config` parameter to the HDA; include
-   `-ocioconfig` flag in the render script.
+10. **OCIO config** — Redshift on the command line needs explicit OCIO config
+    if the scene uses OCIO color management. Houdini sets this automatically;
+    `redshiftUsdCmdLine` does not.
+    **Mitigation:** Add `ocio_config` parameter to the HDA; include
+    `-ocioconfig` flag in the render script.
 
-9. **RS Proxy procedurals in USDZ** — Redshift USD Procedural prims reference
-   external `.rs` proxy files. These won't be bundled by
-   `UsdUtils.CreateNewUsdzPackage` automatically.
-   **Mitigation:** Extend `classifier.py` to detect `.rs` proxy references.
-   Rare in LOP workflows.
+11. **RS Proxy files (`.rs`) in USDZ** — `.rs` proxy files are Redshift's
+    native binary format, NOT USD. They cannot be embedded in USDZ and won't
+    be bundled by `UsdUtils.CreateNewUsdzPackage`.
+    **Mitigation:** Extend `classifier.py` to detect `.rs` proxy references
+    and warn. Rare in LOP workflows (USD Procedurals are used instead).
 
-10. **No `--make-output-path` equivalent** — husk auto-creates output
-    directories; `redshiftUsdCmdLine` may not. The render script needs an
-    explicit `mkdir -p ../Output` before calling the renderer.
+12. **No `--make-output-path` equivalent** — husk auto-creates output
+    directories; `redshiftUsdCmdLine` does not.
+    **Mitigation:** Add `mkdir -p ../Output` in the render script before
+    calling the renderer.
+
+13. **`redshiftTextureProcessor` flags** — Syntax:
+    `redshiftTextureProcessor <inputfile> [-l|-s|-cs "COLORSPACE"]`.
+    `-l` = force linear (normals, displacement), `-s` = force sRGB (diffuse).
+    Supports wildcards (`*.jpg`). No output directory flag — always writes
+    side-by-side.
+    **Mitigation:** Document flag usage. Auto-detect color space from texture
+    type if feasible, else default to auto-detection (float=linear, int=sRGB).
 
 ---
 
@@ -427,13 +475,13 @@ tests/test_redshift_manifest.py
 
 ```
 src/platform_utils.py              # add detect_redshift(), redshift_env_block()
-src/output_injector.py             # parameterize frame token (if <F4> fails)
 src/auditor.py                     # parameterize warning messages
 ```
 
 ## Files Unchanged
 
 ```
+src/output_injector.py             # <F4> token works with redshiftUsdCmdLine
 src/packager.py                    # pure USD, renderer-agnostic
 src/wrapper_writer.py              # pure USD
 src/classifier.py                  # pure USD
