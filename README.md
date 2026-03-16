@@ -63,6 +63,17 @@ bash Scripts/run_cache.sh
 
 The portable `.hip` has rewritten cache paths so output lands in the package's `Cache/` directory. The generated script runs `hython` headlessly — no GUI needed.
 
+### Combined Cache + Render
+
+When the Karma USD Packager detects upstream Remote File Cache nodes, it offers to bundle everything into one package. Click **Verify** to see the discovered dependency chain, then **Package** to build it all:
+
+```bash
+cd SHOT_NAME_P1T1_v001
+bash Scripts/run_all.sh    # runs caches in dependency order, then renders
+```
+
+The dependency resolver follows both visible wires and "virtual wires" — Object Merge cross-references, file-on-disk coupling, expression references, and code-level `op:` paths — so the execution order is always correct, even for complex networks.
+
 ## Updating
 
 HDAs load directly from the cloned repo:
@@ -143,7 +154,19 @@ render_info.txt      — Frame range and USD filename
 {shot}.hip.zip       — HIP backup
 ```
 
-**Remote File Cache:**
+**Combined cache + render** (when upstream caches are detected):
+```
+Cache/               — All cache outputs land here
+Output/              — Rendered frames
+Scenes/              — USDZ + wrapper + portable .hip for caches
+Scripts/
+  run_all.sh         — Orchestration: caches in order, then render
+  run_cache_001_*.sh — Per-cache hython scripts
+  run_render.sh      — husk launcher
+{shot}_manifest.txt  — Packaging report with dependency chain
+```
+
+**Remote File Cache** (standalone):
 ```
 Cache/               — Cache output lands here when run remotely
 Scenes/              — Portable .hip file
@@ -275,10 +298,10 @@ If `hotl` is not on your PATH, source the Houdini environment first: `cd $HFS &&
 <summary><strong>Testing</strong></summary>
 
 ```bash
-# CI tests (no Houdini required) — 103 tests
+# CI tests (no Houdini required) — 171 tests
 pytest -m "not houdini"
 
-# Houdini integration tests (requires $HFS) — 29 tests
+# Houdini integration tests (requires $HFS) — 34 tests
 export HFS=/opt/hfs21.0.631
 pytest -m "houdini" -v
 

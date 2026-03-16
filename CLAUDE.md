@@ -21,7 +21,7 @@ Houdini Remote Render & Cache — a collection of Houdini HDAs that package scen
 ## Commands
 
 ```bash
-# Run CI tests (no Houdini required) — 83 tests
+# Run CI tests (no Houdini required) — 171 tests
 pytest -m "not houdini"
 
 # Run all tests including Houdini-dependent ones (requires live Houdini session)
@@ -46,7 +46,7 @@ No build step. No linter configured. No `requirements.txt` — all dependencies 
 
 2. **`hda_scripts/PythonModule.py`** — HDA callbacks (`on_verify_clicked`, `on_package_clicked`). These replicate the pipeline steps inline (not calling `run_pipeline`) because they need granular control over the UI: per-step log messages, `hou.ui.displayMessage` dialogs, confirmation prompts, and writing to the `log_output` parameter.
 
-Both follow the same sequence: validate → audit → create dirs → inject output paths → flatten & USDZ → write wrapper → write render script → write manifest.
+Both follow the same sequence: validate → **resolve cache dependencies** → audit → create dirs → **package upstream caches** → inject output paths → flatten & USDZ → write wrapper → write render script → **write orchestration script** → write manifest.
 
 **Module pipeline (in execution order):**
 
@@ -63,6 +63,8 @@ Both follow the same sequence: validate → audit → create dirs → inject out
 9. **render_script_writer** — generates `run_render.sh` husk launcher with smart defaults and HFS environment sourcing
 10. **manifest** — writes human-readable plain-text report
 11. **platform_utils** — `imaketx` path resolution, POSIX path normalization, `ensure_dir` with `.placeholder` files (for Google Drive sync)
+12. **dependency_resolver** — discovers upstream Remote File Cache nodes via wired + virtual wires, topological sort, DAG formatting for verify display
+13. **orchestration_writer** — generates `run_all.sh` sequencing cache jobs then render
 
 **HDA scripts (`hda_scripts/`):**
 
@@ -83,7 +85,7 @@ Both follow the same sequence: validate → audit → create dirs → inject out
 1. **cache_validator** — File Cache SOP type check (accepts `filecache::2.0`), frame range, output path validation
 2. **cache_auditor** — reads File Cache params into a `CacheAuditReport` dataclass
 3. **cache_scene_writer** — saves portable `.hip` with rewritten cache output path, handles expression-driven parms (snapshot/restore), unlocks HDA contents temporarily
-4. **cache_script_writer** — generates executable `run_cache.sh` with hbatch command
+4. **cache_script_writer** — generates executable `run_cache.sh` with hython command (not hbatch — `render` only works with ROPs, not filecache SOPs)
 5. **cache_info_writer** — writes machine-readable `cache_info.txt`
 6. **cache_manifest** — human-readable packaging report
 
@@ -101,6 +103,31 @@ Both follow the same sequence: validate → audit → create dirs → inject out
 - File Cache SOP type is versioned as `filecache::2.0` — validator uses `startswith("filecache")`
 
 **Output structure:** `$HIP/{shot_name}_P{pod}T{team}_v{NNN}/` with subdirs: `Cache/`, `Scenes/`, `Scripts/`.
+
+### Dependency Resolver (combined cache + render)
+
+When the Karma USD Packager runs, it discovers upstream Remote File Cache nodes and offers to bundle their cache jobs into the same package. The resolver works in expanding rings:
+
+1. **Walk LOP inputs** — `node.inputs()` recursion through the LOP network
+2. **Cross into SOPs** — via `sopimport` (`soppath` parm), `sopcreate`/`sopmodify` (embedded subnet children)
+3. **Walk SOP inputs** — `node.inputs()` recursion through SOP networks
+4. **Expand via Object Merges** — follow `objpath1..N` parms to discover cross-geo-container references (fixed-point loop)
+5. **Detect virtual wires** — file-on-disk coupling (matching write/read paths), `ch()`/`chs()` cross-network expression refs, `op:`/`hou.node()` in VEX/Python code
+6. **Find cache nodes** — filter for `remote_file_cache` HDA instances
+7. **Topological sort** — Kahn's algorithm, cycle detection, deterministic output
+
+**Key data structures** (`src/dependency_resolver.py`):
+- `CacheableUnit` — node path, filecache path, frame range, output path, dependencies
+- `VirtualWire` — source, target, wire type, detail
+- `DependencyDAG` — cache units dict, execution order, virtual wires, warnings
+
+**Integration points** (`hda_scripts/PythonModule.py`):
+- `on_verify_clicked()` — shows the DAG summary (cache labels, virtual wires, execution order)
+- `on_package_clicked()` — resolves dependencies, asks user to confirm, packages caches via `save_portable_hip_multi()`, writes per-cache `run_cache_NNN.sh` scripts, generates `run_all.sh`
+
+**Multi-cache hip save** (`cache_scene_writer.save_portable_hip_multi()`): rewrites all cache nodes in a single `hou.hipFile.save()` call. Each per-cache script loads the same hip but cooks a different filecache node.
+
+**Orchestration** (`src/orchestration_writer.py`): generates `run_all.sh` that sequences cache scripts in dependency order then runs the render script. Serial execution, `set -e` for fail-fast.
 
 ### Mantra Render Packager (ROP)
 
@@ -136,7 +163,9 @@ Both follow the same sequence: validate → audit → create dirs → inject out
 - **`validator.py`** — `validate_shot_name()` and `validate_hip_saved()` are used by all HDAs
 - **`platform_utils.py`** — `ensure_dir()`, `normalize_path()`, `check_disk_space()` are used by all HDAs
 - **`cache_validator.py`** — `validate_frame_range()` is reused by the Mantra packager
-- **`cache_scene_writer.py`** — `backup_hip_as_zip()` is reused by the Mantra packager
+- **`cache_scene_writer.py`** — `backup_hip_as_zip()` is reused by the Mantra packager; `save_portable_hip_multi()` is used by the Karma packager for combined cache+render packaging
+- **`dependency_resolver.py`** — DAG discovery and topological sort, used by the Karma packager to find upstream cache nodes
+- **`orchestration_writer.py`** — `run_all.sh` generation, used by the Karma packager for combined packaging
 
 ## Deliverable = HDA + src/
 
