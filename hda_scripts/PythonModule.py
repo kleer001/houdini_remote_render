@@ -524,6 +524,26 @@ def on_verify_clicked(kwargs):
             log.append(f"  [5/5] Stage audit ......... FAIL (no input)")
             has_failure = True
 
+        # [DEPS] Upstream dependency scan
+        try:
+            from src.dependency_resolver import (
+                resolve_dependencies, format_dag_summary, CyclicDependencyError,
+            )
+            dag = resolve_dependencies(node)
+            log.append("")
+            log.append("[DEPS] Upstream dependency scan:")
+            log.append(format_dag_summary(dag))
+            if dag.execution_order:
+                log.append("")
+                log.append("[OK] Dependency chain verified — no cycles.")
+        except CyclicDependencyError as e:
+            log.append("")
+            log.append(f"[FAIL] Cyclic dependency: {e}")
+            has_failure = True
+        except Exception as e:
+            log.append("")
+            log.append(f"[DEPS] Scan skipped: {e}")
+
         # Warnings section
         if warnings:
             log.append("")
@@ -611,6 +631,86 @@ def on_package_clicked(kwargs):
             zf.write(hip_path, hip_basename)
         zip_size = os.path.getsize(zip_path) / (1024 * 1024)
         log.append(f"  [3/9] Backing up HIP ..... {zip_size:.2f} MB")
+
+        # 3b. Resolve cache dependencies and package if found
+        from src.dependency_resolver import resolve_dependencies, CyclicDependencyError
+        cache_scripts_list = []  # [(label, filename)] for orchestration
+
+        try:
+            dag = resolve_dependencies(node)
+        except CyclicDependencyError as e:
+            hou.ui.displayMessage(
+                f"Cyclic cache dependency:\n{e}",
+                severity=hou.severityType.Error,
+            )
+            return
+        except Exception as e:
+            log.append(f"  [DEPS] Scan skipped: {e}")
+            dag = None
+
+        if dag and dag.execution_order:
+            n_caches = len(dag.execution_order)
+            labels = [
+                dag.cache_units[p].label for p in dag.execution_order
+            ]
+            result = hou.ui.displayMessage(
+                f"Found {n_caches} upstream cache job(s):\n"
+                + "\n".join(f"  {i+1}. {l}" for i, l in enumerate(labels))
+                + "\n\nPackage these with the render?",
+                buttons=("Package All", "Render Only", "Cancel"),
+                title="Cache Dependencies Found",
+            )
+            if result == 2:
+                return
+            if result == 0:
+                from src.cache_scene_writer import save_portable_hip_multi
+                from src.cache_script_writer import write_cache_script
+
+                # Collect internal filecache nodes
+                fc_nodes = []
+                for path in dag.execution_order:
+                    unit = dag.cache_units[path]
+                    fc = hou.node(unit.filecache_path)
+                    if fc:
+                        fc_nodes.append(fc)
+
+                # Save one portable .hip with all cache paths rewritten
+                cache_hip_filename = f"{shot_name}_cache.hip"
+                cache_hip_path = os.path.join(shot_dir, "Scenes", cache_hip_filename)
+                save_portable_hip_multi(fc_nodes, cache_hip_path)
+
+                # Resolve actual filename (Indie -> .hiplc)
+                actual_hip = cache_hip_path
+                if not os.path.exists(actual_hip):
+                    for ext in (".hiplc", ".hipnc"):
+                        alt = cache_hip_path.rsplit(".hip", 1)[0] + ext
+                        if os.path.exists(alt):
+                            actual_hip = alt
+                            break
+                actual_hip_filename = os.path.basename(actual_hip)
+
+                # Write per-cache scripts
+                for i, path in enumerate(dag.execution_order, 1):
+                    unit = dag.cache_units[path]
+                    script_filename = f"run_cache_{i:03d}_{unit.label}.sh"
+                    script_path = os.path.join(
+                        shot_dir, "Scripts", script_filename
+                    )
+                    write_cache_script(
+                        output_path=script_path,
+                        shot_name=shot_name,
+                        hip_filename=actual_hip_filename,
+                        cache_node_path=unit.filecache_path,
+                        frame_start=unit.frame_start,
+                        frame_end=unit.frame_end,
+                    )
+                    cache_scripts_list.append((unit.label, script_filename))
+
+                hip_mb = os.path.getsize(actual_hip) / (1024 * 1024)
+                log.append(
+                    f"  [CACHE] Packaged {n_caches} cache job(s) "
+                    f"({hip_mb:.1f} MB .hip)"
+                )
 
         # 4. Get stage from input
         input_node = node.inputs()[0] if node.inputs() else None
@@ -751,6 +851,19 @@ def on_package_clicked(kwargs):
             frame_end=frame_end,
         )
         log.append(f"  [8/9] Writing render script DONE")
+
+        # 8b. Write orchestration script if caches were packaged
+        if cache_scripts_list:
+            from src.orchestration_writer import write_orchestration_script
+
+            orch_path = os.path.join(shot_dir, "Scripts", "run_all.sh")
+            write_orchestration_script(
+                output_path=orch_path,
+                shot_name=shot_name,
+                cache_scripts=cache_scripts_list,
+                render_script_filename="run_render.sh",
+            )
+            log.append(f"  [ORCH] Writing run_all.sh .. DONE")
 
         # 9. Write manifest
         manifest_path = os.path.join(shot_dir, f"{shot_name}_manifest.txt")

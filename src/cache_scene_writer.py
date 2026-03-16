@@ -9,6 +9,53 @@ import zipfile
 from pathlib import Path
 
 
+def _snapshot_parm(parm):
+    """Capture a parm's expression or raw value for later restoration."""
+    import hou
+
+    try:
+        return (True, parm.expression(), parm.expressionLanguage())
+    except hou.OperationFailed:
+        try:
+            return (False, parm.unexpandedString(), None)
+        except hou.OperationFailed:
+            return (False, parm.eval(), None)
+
+
+def _restore_parm(parm, snapshot):
+    """Restore a parm from a snapshot created by ``_snapshot_parm``."""
+    has_expr, value, lang = snapshot
+    if has_expr:
+        parm.setExpression(value, lang)
+    else:
+        parm.set(value)
+
+
+def _rewrite_filecache(fc, remote_cache_dir):
+    """Rewrite a filecache node's output path and safety flags.
+
+    Assumes the parent HDA is already unlocked. Deletes keyframes so
+    ``set()`` is not silently ignored by active expressions.
+    """
+    file_method = fc.parm("filemethod").eval()
+    if file_method == 0:  # Constructed
+        fc.parm("basedir").deleteAllKeyframes()
+        fc.parm("basedir").set(remote_cache_dir)
+    else:  # Explicit
+        orig_expanded = fc.parm("file").eval()
+        filename = Path(orig_expanded).name
+        fc.parm("file").deleteAllKeyframes()
+        fc.parm("file").set(f"{remote_cache_dir}/{filename}")
+
+    fc.parm("savebackground").deleteAllKeyframes()
+    fc.parm("savebackground").set(False)
+    fc.parm("loadfromdisk").deleteAllKeyframes()
+    fc.parm("loadfromdisk").set(False)
+
+
+_SNAPSHOT_PARMS = ("basedir", "file", "savebackground", "loadfromdisk")
+
+
 def save_portable_hip(
     filecache_node,
     output_hip_path: str,
@@ -34,70 +81,73 @@ def save_portable_hip(
 
     os.makedirs(os.path.dirname(output_hip_path), exist_ok=True)
 
-    # Snapshot original state — parms may have expressions (from HDA linking)
-    # so we save expression/value pairs and restore the correct type.
-    def _snapshot_parm(parm):
-        """Return (has_expr, expr_or_value) for later restoration."""
-        try:
-            return (True, parm.expression(), parm.expressionLanguage())
-        except hou.OperationFailed:
-            # No expression — it's a raw value
-            try:
-                return (False, parm.unexpandedString(), None)
-            except hou.OperationFailed:
-                return (False, parm.eval(), None)
-
-    def _restore_parm(parm, snapshot):
-        """Restore a parm from its snapshot."""
-        has_expr, value, lang = snapshot
-        if has_expr:
-            parm.setExpression(value, lang)
-        else:
-            parm.set(value)
-
-    # The filecache lives inside a locked HDA — unlock so we can modify parms
     hda_node = filecache_node.parent()
     hda_node.allowEditingOfContents()
 
-    snap_basedir = _snapshot_parm(filecache_node.parm("basedir"))
-    snap_file = _snapshot_parm(filecache_node.parm("file"))
-    snap_savebackground = _snapshot_parm(filecache_node.parm("savebackground"))
-    snap_loadfromdisk = _snapshot_parm(filecache_node.parm("loadfromdisk"))
+    snaps = {p: _snapshot_parm(filecache_node.parm(p)) for p in _SNAPSHOT_PARMS}
 
     try:
-        # Rewrite for remote execution — delete expressions first so we can set values
-        file_method = filecache_node.parm("filemethod").eval()
-        if file_method == 0:  # Constructed
-            filecache_node.parm("basedir").deleteAllKeyframes()
-            filecache_node.parm("basedir").set(remote_cache_dir)
-        else:  # Explicit
-            orig_expanded = filecache_node.parm("file").eval()
-            filename = Path(orig_expanded).name
-            filecache_node.parm("file").deleteAllKeyframes()
-            filecache_node.parm("file").set(f"{remote_cache_dir}/{filename}")
+        _rewrite_filecache(filecache_node, remote_cache_dir)
 
-        # Force blocking saves and ensure it cooks (not loads)
-        filecache_node.parm("savebackground").deleteAllKeyframes()
-        filecache_node.parm("savebackground").set(False)
-        filecache_node.parm("loadfromdisk").deleteAllKeyframes()
-        filecache_node.parm("loadfromdisk").set(False)
-
-        # Save a copy: save to the new path, then restore the original hip path.
-        # Using save() with a path argument acts like "Save As", so we must
-        # restore the original path afterward.
         orig_hip_path = hou.hipFile.path()
         hou.hipFile.save(output_hip_path, save_to_recent_files=False)
-        # Restore original hip file path so the artist's session is unchanged
         hou.hipFile.setName(orig_hip_path)
 
     finally:
-        # Always revert to original state (expressions or raw values)
-        _restore_parm(filecache_node.parm("basedir"), snap_basedir)
-        _restore_parm(filecache_node.parm("file"), snap_file)
-        _restore_parm(filecache_node.parm("savebackground"), snap_savebackground)
-        _restore_parm(filecache_node.parm("loadfromdisk"), snap_loadfromdisk)
-        # Re-lock the HDA contents
+        for pname, snap in snaps.items():
+            _restore_parm(filecache_node.parm(pname), snap)
         hda_node.matchCurrentDefinition()
+
+    return output_hip_path
+
+
+def save_portable_hip_multi(
+    filecache_nodes: list,
+    output_hip_path: str,
+    remote_cache_dir: str = "$HIP/../Cache",
+) -> str:
+    """Save a .hip with multiple File Cache nodes rewritten for remote execution.
+
+    Like :func:`save_portable_hip` but rewrites all given filecache nodes in a
+    single hip save. Each ``run_cache_NNN.sh`` loads the same hip but cooks a
+    different filecache node.
+
+    Args:
+        filecache_nodes: List of ``hou.SopNode`` for each internal filecache.
+        output_hip_path: Full path to save the portable .hip file.
+        remote_cache_dir: Base directory for cache output.
+
+    Returns:
+        The output_hip_path on success.
+    """
+    import hou
+
+    if not filecache_nodes:
+        return output_hip_path
+
+    os.makedirs(os.path.dirname(output_hip_path), exist_ok=True)
+
+    # Unlock all HDAs and snapshot all parms.
+    entries: list[dict] = []
+    for fc in filecache_nodes:
+        hda = fc.parent()
+        hda.allowEditingOfContents()
+        snaps = {p: _snapshot_parm(fc.parm(p)) for p in _SNAPSHOT_PARMS}
+        entries.append({"fc": fc, "hda": hda, "snaps": snaps})
+
+    try:
+        for entry in entries:
+            _rewrite_filecache(entry["fc"], remote_cache_dir)
+
+        orig_hip_path = hou.hipFile.path()
+        hou.hipFile.save(output_hip_path, save_to_recent_files=False)
+        hou.hipFile.setName(orig_hip_path)
+
+    finally:
+        for entry in entries:
+            for pname, snap in entry["snaps"].items():
+                _restore_parm(entry["fc"].parm(pname), snap)
+            entry["hda"].matchCurrentDefinition()
 
     return output_hip_path
 
