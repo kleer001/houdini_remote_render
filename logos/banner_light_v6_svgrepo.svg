@@ -47,7 +47,7 @@
   <text x="290" y="140" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="600" font-size="28" fill="#E8600A">Package it. Ship it. Render it.</text>
 
   <!-- Tagline line 2 -->
-  <text x="290" y="185" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="300" font-size="20" fill="#555555">Portable render packages. No farm required.</text>
+  <text x="290" y="185" font-family="Inter, Helvetica, Arial, sans-serif" font-weight="300" font-size="20" fill="#555555">Portable render/cache packaging. No farm required.</text>
 
   <!-- Subtle bottom accent line -->
   <rect x="290" y="210" width="120" height="2" rx="1" fill="#E8600A" opacity="0.6"/>

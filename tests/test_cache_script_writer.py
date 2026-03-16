@@ -35,7 +35,7 @@ class TestWriteCacheScript:
             st = os.stat(path)
             assert st.st_mode & stat.S_IEXEC
 
-    def test_contains_hbatch_command(self):
+    def test_contains_hython_command(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "Scripts", "run_cache.sh")
             write_cache_script(
@@ -51,10 +51,10 @@ class TestWriteCacheScript:
                 content = f.read()
 
             assert "#!/bin/bash" in content
-            assert "hbatch" in content
-            assert "mread Scenes/explosion.hip" in content
-            assert "render -f 1001 1200 /obj/geo1/filecache1" in content
-            assert "quit" in content
+            assert "hython" in content
+            assert "Scenes/explosion.hip" in content
+            assert "/obj/geo1/filecache1" in content
+            assert "pressButton" in content
 
     def test_contains_shot_info(self):
         with tempfile.TemporaryDirectory() as tmpdir:
