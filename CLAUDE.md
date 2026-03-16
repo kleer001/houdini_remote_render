@@ -171,6 +171,19 @@ When the Karma USD Packager runs, it discovers upstream Remote File Cache nodes 
 
 The `.hdalc` files are the deliverable artifact — they are installed on other people's machines. The HDAs load `src/` modules at runtime via `_ensure_src_path()`, which resolves the repo root relative to the HDA library file. This means **any change to `src/` files is only effective if the updated `src/` directory is delivered alongside the HDA**. Editing `src/` locally without updating the HDA on disk is a local-only fix that won't reach other users. After changing any code (whether in `hda_scripts*/` or `src/`), always save the HDA definition to disk so the `.hdalc` is current.
 
+## HDA version stamping
+
+Each HDA has an `hda_version` parameter (disabled string, bottom of the UI) showing the semantic version and commit hash: `v0.1.65 (abc1234)`. The version format is `v0.1.<commit_count> (<short_hash>)`.
+
+**When committing changes that touch any HDA** (code in `src/`, `hda_scripts*/`, or the `.hdalc` files), update the version stamp before saving the HDA definition:
+
+1. Get the new commit count: `git rev-list --count HEAD` (add 1 since the commit hasn't happened yet)
+2. Get the commit hash after committing: `git rev-parse --short HEAD`
+3. Update the `hda_version` parm default on every affected HDA definition
+4. Save the HDA definition to disk
+
+Since the commit hash isn't known until after committing, the workflow is: commit first, then update the HDA version parm with the new hash/count, amend the commit (or make a follow-up `chore:` commit).
+
 ## USD API gotchas
 
 - `stage.Flatten()` returns `Sdf.Layer`, not `Usd.Stage`
