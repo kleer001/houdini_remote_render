@@ -504,6 +504,22 @@ def on_verify_clicked(kwargs):
             log.append(f"        Lights                {report.light_count}")
             log.append(f"        Instances             {report.instance_count:,}")
 
+            # Detect Karma engine from upstream LOP
+            _karma_engine = None
+            _vwalk = [input_node]
+            _vvisited = set()
+            while _vwalk:
+                _vn = _vwalk.pop(0)
+                if _vn in _vvisited:
+                    continue
+                _vvisited.add(_vn)
+                if _vn.type().name() == "karmarendersettings":
+                    _karma_engine = _vn.parm("engine").eval()
+                    break
+                _vwalk.extend(i for i in _vn.inputs() if i is not None)
+            if _karma_engine:
+                log.append(f"        Engine                {_karma_engine.upper()}")
+
             warnings.extend(report.warnings)
             warnings.extend(audit_issues)
 
@@ -834,6 +850,22 @@ def on_package_clicked(kwargs):
         # 8. Write render script + render_info.txt
         from src.render_script_writer import write_render_script
 
+        # Read engine (cpu/xpu) from upstream Karma RenderSettings LOP —
+        # this is a Houdini LOP parameter, NOT a USD attribute, so it
+        # doesn't survive flatten/USDZ.  Must be passed as a husk CLI flag.
+        karma_engine = None
+        _walk = [input_node]
+        _visited = set()
+        while _walk:
+            _n = _walk.pop(0)
+            if _n in _visited:
+                continue
+            _visited.add(_n)
+            if _n.type().name() == "karmarendersettings":
+                karma_engine = _n.parm("engine").eval()
+                break
+            _walk.extend(i for i in _n.inputs() if i is not None)
+
         render_info_path = os.path.join(shot_dir, "render_info.txt")
         frame_count = frame_end - frame_start + 1
         with open(render_info_path, "w") as f:
@@ -849,6 +881,7 @@ def on_package_clicked(kwargs):
             wrapper_filename=wrapper_filename,
             frame_start=frame_start,
             frame_end=frame_end,
+            engine=karma_engine if karma_engine != "cpu" else None,
         )
         log.append(f"  [8/9] Writing render script DONE")
 
