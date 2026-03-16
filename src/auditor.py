@@ -219,7 +219,8 @@ def check_resolution_mismatches(stage) -> list[str]:
                 f"Resolution mismatch: RenderSettings={settings_res[0]}x{settings_res[1]} "
                 f"but {prim.GetName()}={prod_res[0]}x{prod_res[1]}. "
                 f"husk will use the RenderProduct resolution. "
-                f"Fix in the Karma RenderSettings LOP or a downstream RenderProduct LOP."
+                f"Check the camera aspect ratio and aspectRatioConformPolicy "
+                f"in the Karma RenderSettings LOP."
             )
     return mismatches
 
