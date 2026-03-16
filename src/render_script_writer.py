@@ -1,16 +1,9 @@
 """Generate husk launch script for remote Karma rendering."""
 
 import os
-import stat
 from datetime import datetime
 
-
-def _detect_hfs() -> str | None:
-    """Return HFS path from environment or None."""
-    hfs = os.environ.get("HFS")
-    if hfs and os.path.isdir(hfs):
-        return hfs
-    return None
+from src.platform_utils import detect_hfs, hfs_source_block, make_executable
 
 
 def write_render_script(
@@ -51,7 +44,7 @@ def write_render_script(
         hfs_path: Houdini install path ($HFS). Auto-detected if not provided.
     """
     timestamp = datetime.now().isoformat(timespec="seconds")
-    hfs_path = hfs_path or _detect_hfs()
+    hfs_path = hfs_path or detect_hfs()
     is_sequence = frame_end - frame_start > 0
 
     # Smart default: restart delegate every frame for sequences
@@ -96,23 +89,6 @@ def write_render_script(
 
     flags_str = " \\\n    ".join(flags)
 
-    # Build HFS setup block — always source to get full environment
-    if hfs_path:
-        hfs_block = f"""
-# Source Houdini environment
-_HFS="${{HFS:-{hfs_path}}}"
-_SHOT_ROOT="$(pwd)"
-if [ -d "$_HFS" ]; then
-    cd "$_HFS"
-    source ./houdini_setup_bash
-    cd "$_SHOT_ROOT"
-fi
-"""
-    else:
-        hfs_block = """
-# HFS not known at packaging time — husk must be on PATH
-"""
-
     script = f"""#!/bin/bash
 # Remote Karma Render — husk launcher
 # Shot: {shot_name}
@@ -120,7 +96,7 @@ fi
 
 set -e
 cd "$(dirname "$0")/.."
-{hfs_block}
+{hfs_source_block(hfs_path)}
 echo "Starting render: {shot_name}"
 echo "Frames: {frame_start}-{frame_end}"
 echo "Renderer: {renderer}"
@@ -141,6 +117,4 @@ echo "Render complete."
     with open(output_path, "w", newline="\n") as f:
         f.write(script)
 
-    # Make executable
-    st = os.stat(output_path)
-    os.chmod(output_path, st.st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    make_executable(output_path)

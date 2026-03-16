@@ -184,7 +184,6 @@ def format_dag_summary(dag: DependencyDAG) -> str:
 
     for i, path in enumerate(dag.execution_order, 1):
         unit = dag.cache_units[path]
-        label = unit.label or path.rsplit("/", 1)[-1]
         lines.append(f"  {i}. {unit.node_path}")
         lines.append(
             f"     frames {unit.frame_start}-{unit.frame_end}, "
@@ -343,11 +342,8 @@ def _find_sop_references(lop_nodes: set, warnings: list[str]) -> set:
         elif type_name in ("sopcreate", "sopmodify"):
             # Embedded SOP subnet — collect children that are SOPs.
             for child in node.children():
-                try:
-                    if child.type().category() == hou.sopNodeTypeCategory():
-                        sop_nodes.add(child)
-                except Exception:
-                    pass
+                if child.type().category() == hou.sopNodeTypeCategory():
+                    sop_nodes.add(child)
 
     return sop_nodes
 
@@ -479,13 +475,10 @@ def _detect_expression_ref_wires(
                 ref_node_path = parts[0]
 
                 # Resolve the path.
-                try:
-                    if ref_node_path.startswith("/"):
-                        ref_node = hou.node(ref_node_path)
-                    else:
-                        ref_node = node.node(ref_node_path)
-                except Exception:
-                    ref_node = None
+                if ref_node_path.startswith("/"):
+                    ref_node = hou.node(ref_node_path)
+                else:
+                    ref_node = node.node(ref_node_path)
 
                 if ref_node is None or ref_node.path() == node.path():
                     continue

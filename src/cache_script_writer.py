@@ -5,16 +5,9 @@ hbatch's ``render`` command only works with ROP nodes and silently skips SOPs.
 """
 
 import os
-import stat
 from datetime import datetime
 
-
-def _detect_hfs() -> str | None:
-    """Return HFS path from environment or None."""
-    hfs = os.environ.get("HFS")
-    if hfs and os.path.isdir(hfs):
-        return hfs
-    return None
+from src.platform_utils import detect_hfs, hfs_source_block, make_executable
 
 
 def write_cache_script(
@@ -38,23 +31,7 @@ def write_cache_script(
         hfs_path: Houdini install path ($HFS). Auto-detected if not provided.
     """
     timestamp = datetime.now().isoformat(timespec="seconds")
-    hfs_path = hfs_path or _detect_hfs()
-
-    if hfs_path:
-        hfs_block = f"""
-# Source Houdini environment
-_HFS="${{HFS:-{hfs_path}}}"
-_SHOT_ROOT="$(pwd)"
-if [ -d "$_HFS" ]; then
-    cd "$_HFS"
-    source ./houdini_setup_bash
-    cd "$_SHOT_ROOT"
-fi
-"""
-    else:
-        hfs_block = """
-# HFS not known at packaging time — hython must be on PATH
-"""
+    hfs_path = hfs_path or detect_hfs()
 
     script = f"""#!/bin/bash
 # Remote File Cache — hython launcher
@@ -63,7 +40,7 @@ fi
 
 set -e
 cd "$(dirname "$0")/.."
-{hfs_block}
+{hfs_source_block(hfs_path)}
 echo "Starting cache: {shot_name}"
 echo "Frames: {frame_start}-{frame_end}"
 echo "Node: {cache_node_path}"
@@ -76,6 +53,8 @@ node = hou.node("{cache_node_path}")
 if node is None:
     print("ERROR: Node {cache_node_path} not found")
     sys.exit(1)
+for p in ("trange", "f1", "f2", "f3"):
+    node.parm(p).deleteAllKeyframes()
 node.parm("trange").set(1)
 node.parm("f1").set({frame_start})
 node.parm("f2").set({frame_end})
@@ -91,6 +70,4 @@ echo "Cache complete."
     with open(output_path, "w", newline="\n") as f:
         f.write(script)
 
-    # Make executable
-    st = os.stat(output_path)
-    os.chmod(output_path, st.st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    make_executable(output_path)

@@ -5,6 +5,7 @@ All OS-sensitive logic lives here. Nothing else in the codebase does OS detectio
 
 import os
 import platform
+import stat
 from pathlib import Path
 
 
@@ -95,3 +96,39 @@ def check_disk_space(path: str) -> tuple[int, int, int]:
     import shutil
     usage = shutil.disk_usage(path)
     return (usage.total, usage.used, usage.free)
+
+
+def detect_hfs() -> str | None:
+    """Return ``$HFS`` path from environment, or None if unset/missing."""
+    hfs = os.environ.get("HFS")
+    if hfs and os.path.isdir(hfs):
+        return hfs
+    return None
+
+
+def make_executable(path: str) -> None:
+    """Add owner/group/other execute bits to a file."""
+    st = os.stat(path)
+    os.chmod(path, st.st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def hfs_source_block(hfs_path: str | None) -> str:
+    """Return a bash snippet that sources ``houdini_setup_bash``.
+
+    If *hfs_path* is None, returns a comment indicating hython/husk must
+    already be on PATH.
+    """
+    if hfs_path:
+        return f"""
+# Source Houdini environment
+_HFS="${{HFS:-{hfs_path}}}"
+_SHOT_ROOT="$(pwd)"
+if [ -d "$_HFS" ]; then
+    cd "$_HFS"
+    source ./houdini_setup_bash
+    cd "$_SHOT_ROOT"
+fi
+"""
+    return """
+# HFS not known at packaging time — hython/husk must be on PATH
+"""
