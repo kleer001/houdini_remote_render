@@ -1,5 +1,7 @@
 """Tests for classifier module."""
 
+import os
+
 import pytest
 
 from src.classifier import detect_udim_pattern, _get_extension
@@ -44,7 +46,7 @@ class TestClassifyDependencies:
         from src.classifier import classify_dependencies
 
         deps = classify_dependencies(
-            "/home/menser/Dropbox/ai/code/houdini_remote_render/tests/minimal_test_scene.usda"
+            os.path.join(os.path.dirname(__file__), "minimal_test_scene.usda")
         )
 
         # Textures don't exist on disk, so they show up as unresolved

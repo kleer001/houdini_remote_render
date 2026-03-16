@@ -13,7 +13,7 @@ class TestOutputInjector:
         from src.output_injector import inject_output_paths
 
         stage = Usd.Stage.Open(
-            "/home/menser/Dropbox/ai/code/houdini_remote_render/tests/minimal_test_scene.usda"
+            os.path.join(os.path.dirname(__file__), "minimal_test_scene.usda")
         )
         modified = inject_output_paths(stage, "test_shot", "../Output")
 
@@ -29,7 +29,7 @@ class TestOutputInjector:
         from src.output_injector import inject_output_paths
 
         stage = Usd.Stage.Open(
-            "/home/menser/Dropbox/ai/code/houdini_remote_render/tests/minimal_test_scene.usda"
+            os.path.join(os.path.dirname(__file__), "minimal_test_scene.usda")
         )
         inject_output_paths(stage, "test_shot", "../Renders")
 
@@ -46,7 +46,7 @@ class TestFlattenStage:
         from src.packager import flatten_stage
 
         stage = Usd.Stage.Open(
-            "/home/menser/Dropbox/ai/code/houdini_remote_render/tests/minimal_test_scene.usda"
+            os.path.join(os.path.dirname(__file__), "minimal_test_scene.usda")
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -65,7 +65,7 @@ class TestCreateUsdz:
         from src.packager import flatten_stage, create_usdz
 
         stage = Usd.Stage.Open(
-            "/home/menser/Dropbox/ai/code/houdini_remote_render/tests/minimal_test_scene.usda"
+            os.path.join(os.path.dirname(__file__), "minimal_test_scene.usda")
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -81,7 +81,7 @@ class TestCreateUsdz:
         from src.packager import flatten_stage, create_usdz
 
         stage = Usd.Stage.Open(
-            "/home/menser/Dropbox/ai/code/houdini_remote_render/tests/minimal_test_scene.usda"
+            os.path.join(os.path.dirname(__file__), "minimal_test_scene.usda")
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:

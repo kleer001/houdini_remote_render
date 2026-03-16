@@ -207,3 +207,4 @@ marimo/_lsp/
 __marimo__/
 tests/textures/
 hda/backup/
+logos/*.png

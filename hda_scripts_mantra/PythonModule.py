@@ -62,6 +62,12 @@ def _get_mantra_node(node):
     return node.node("mantra1")
 
 
+def _has_ui():
+    """Return True if hou.ui is available (False in headless/hython)."""
+    import hou
+    return hasattr(hou, "ui") and hou.ui is not None
+
+
 # ---------- Parameter callbacks ----------
 
 def on_shot_name_changed(kwargs):
@@ -219,13 +225,15 @@ def on_package_clicked(kwargs):
     ok, msg = validate_shot_name(shot_name)
     if not ok:
         _log(node, f"  [FAIL] {msg}")
-        hou.ui.displayMessage(msg, title="Package Failed")
+        if _has_ui():
+            hou.ui.displayMessage(msg, title="Package Failed")
         return
 
     ok, msg = validate_hip_saved()
     if not ok:
         _log(node, f"  [FAIL] {msg}")
-        hou.ui.displayMessage(msg, title="Package Failed")
+        if _has_ui():
+            hou.ui.displayMessage(msg, title="Package Failed")
         return
     if msg:
         warnings.append(msg)
@@ -235,7 +243,8 @@ def on_package_clicked(kwargs):
     ok, msg = validate_mantra_node(mantra)
     if not ok:
         _log(node, f"  [FAIL] {msg}")
-        hou.ui.displayMessage(msg, title="Package Failed")
+        if _has_ui():
+            hou.ui.displayMessage(msg, title="Package Failed")
         return
 
     f_start = mantra.parm("f1").eval()
@@ -244,15 +253,23 @@ def on_package_clicked(kwargs):
     ok, msg = validate_frame_range(f_start, f_end, f_inc)
     if not ok:
         _log(node, f"  [FAIL] {msg}")
-        hou.ui.displayMessage(msg, title="Package Failed")
+        if _has_ui():
+            hou.ui.displayMessage(msg, title="Package Failed")
         return
 
-    output_picture = mantra.parm("vm_picture").eval()
-    ok, msg = validate_output_picture(output_picture)
+    output_picture_eval = mantra.parm("vm_picture").eval()
+    ok, msg = validate_output_picture(output_picture_eval)
     if not ok:
         _log(node, f"  [FAIL] {msg}")
-        hou.ui.displayMessage(msg, title="Package Failed")
+        if _has_ui():
+            hou.ui.displayMessage(msg, title="Package Failed")
         return
+
+    # Get unexpanded picture path to preserve $F4 in metadata
+    try:
+        output_picture_raw = mantra.parm("vm_picture").unexpandedString()
+    except Exception:
+        output_picture_raw = output_picture_eval
 
     # Audit the Mantra ROP for metadata
     audit = audit_mantra_rop(mantra)
@@ -268,15 +285,18 @@ def on_package_clicked(kwargs):
     shot_root = os.path.join(hip_dir, folder_name)
 
     if os.path.exists(shot_root):
-        result = hou.ui.displayMessage(
-            f"Folder '{folder_name}' already exists. Overwrite?",
-            buttons=("Overwrite", "Cancel"),
-            severity=hou.severityType.Warning,
-            title="Folder Exists",
-        )
-        if result == 1:
-            _log(node, "  Cancelled by user.")
-            return
+        if _has_ui():
+            result = hou.ui.displayMessage(
+                f"Folder '{folder_name}' already exists. Overwrite?",
+                buttons=("Overwrite", "Cancel"),
+                severity=hou.severityType.Warning,
+                title="Folder Exists",
+            )
+            if result == 1:
+                _log(node, "  Cancelled by user.")
+                return
+        else:
+            _log(node, "  [WARN] Folder exists — overwriting (headless mode).")
 
     for subdir in ("Output", "Scenes", "Scripts"):
         ensure_dir(os.path.join(shot_root, subdir))
@@ -312,8 +332,7 @@ def on_package_clicked(kwargs):
     _log(node, "[5/7] Writing render_info.txt...")
 
     rop_node_path = mantra.path()
-    from pathlib import Path
-    output_filename = Path(output_picture).name if output_picture else "render.$F4.exr"
+    output_filename = os.path.basename(output_picture_raw) if output_picture_raw else "render.$F4.exr"
     output_pattern = f"Output/{output_filename}"
 
     houdini_version = hou.applicationVersionString()

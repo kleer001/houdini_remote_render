@@ -5,7 +5,8 @@ then reverts. The artist's live scene is never permanently changed.
 """
 
 import os
-from pathlib import Path
+
+from src.cache_scene_writer import _snapshot_parm, _restore_parm
 
 
 def save_portable_hip(
@@ -32,40 +33,31 @@ def save_portable_hip(
 
     os.makedirs(os.path.dirname(output_hip_path), exist_ok=True)
 
-    def _snapshot_parm(parm):
-        """Return (has_expr, expr_or_value, language) for later restoration."""
-        try:
-            return (True, parm.expression(), parm.expressionLanguage())
-        except hou.OperationFailed:
-            try:
-                return (False, parm.unexpandedString(), None)
-            except hou.OperationFailed:
-                return (False, parm.eval(), None)
+    # Unlock HDA contents if the mantra node lives inside a locked HDA
+    hda_node = mantra_node.parent()
+    is_locked_hda = hda_node.matchesCurrentDefinition()
+    if is_locked_hda:
+        hda_node.allowEditingOfContents()
 
-    def _restore_parm(parm, snapshot):
-        """Restore a parm from its snapshot."""
-        has_expr, value, lang = snapshot
-        if has_expr:
-            parm.setExpression(value, lang)
-        else:
-            parm.set(value)
-
-    # Snapshot vm_picture
     snap_picture = _snapshot_parm(mantra_node.parm("vm_picture"))
 
     try:
-        # Rewrite output path for remote execution
-        orig_picture = mantra_node.parm("vm_picture").eval()
-        filename = Path(orig_picture).name if orig_picture else "render.$F4.exr"
+        # Use unexpandedString to preserve $F4 and other variables in the filename
+        try:
+            orig_picture = mantra_node.parm("vm_picture").unexpandedString()
+        except hou.OperationFailed:
+            orig_picture = mantra_node.parm("vm_picture").eval()
+        filename = os.path.basename(orig_picture) if orig_picture else "render.$F4.exr"
         mantra_node.parm("vm_picture").deleteAllKeyframes()
         mantra_node.parm("vm_picture").set(f"{remote_output_dir}/{filename}")
 
-        # Save a copy
         orig_hip_path = hou.hipFile.path()
         hou.hipFile.save(output_hip_path, save_to_recent_files=False)
         hou.hipFile.setName(orig_hip_path)
 
     finally:
         _restore_parm(mantra_node.parm("vm_picture"), snap_picture)
+        if is_locked_hda:
+            hda_node.matchCurrentDefinition()
 
     return output_hip_path

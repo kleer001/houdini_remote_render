@@ -74,7 +74,7 @@ class TestWriteMantraScript:
 
             assert "1001" in content
             assert "1200" in content
-            assert "-f 1001 1200 2" in content
+            assert "-f 1001 1200 -i 2" in content
 
     def test_contains_shot_info(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -19,7 +19,7 @@ class MantraManifestData:
     frame_inc: int = 1
     resolution: tuple[int, int] = (1280, 720)
     pixel_samples: tuple[int, int] = (3, 3)
-    render_engine: str = "micropoly"
+    render_engine: str = "raytrace"
     camera: str = ""
     aov_count: int = 0
     rop_node_path: str = ""

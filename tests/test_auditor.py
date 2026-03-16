@@ -1,5 +1,7 @@
 """Tests for auditor module."""
 
+import os
+
 import pytest
 
 pytestmark = pytest.mark.houdini
@@ -11,7 +13,7 @@ class TestAuditStage:
         from src.auditor import audit_stage
 
         stage = Usd.Stage.Open(
-            "/home/menser/Dropbox/ai/code/houdini_remote_render/tests/minimal_test_scene.usda"
+            os.path.join(os.path.dirname(__file__), "minimal_test_scene.usda")
         )
         report = audit_stage(stage)
 
@@ -52,7 +54,7 @@ class TestEnsureRenderSettings:
         from src.auditor import ensure_render_settings
 
         stage = Usd.Stage.Open(
-            "/home/menser/Dropbox/ai/code/houdini_remote_render/tests/minimal_test_scene.usda"
+            os.path.join(os.path.dirname(__file__), "minimal_test_scene.usda")
         )
         # Should not create a second one
         ensure_render_settings(stage)
@@ -79,7 +81,7 @@ class TestCheckRenderVars:
         from src.auditor import check_render_vars
 
         stage = Usd.Stage.Open(
-            "/home/menser/Dropbox/ai/code/houdini_remote_render/tests/minimal_test_scene.usda"
+            os.path.join(os.path.dirname(__file__), "minimal_test_scene.usda")
         )
         missing = check_render_vars(stage)
         assert missing == []

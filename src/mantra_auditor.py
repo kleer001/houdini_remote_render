@@ -18,7 +18,7 @@ class MantraAuditReport:
     output_picture: str = ""
     image_format: str = ""
     camera: str = ""
-    render_engine: str = "micropoly"
+    render_engine: str = "raytrace"
     frame_start: float = 0
     frame_end: float = 0
     frame_inc: float = 1
@@ -44,17 +44,12 @@ def audit_mantra_rop(node) -> MantraAuditReport:
     report = MantraAuditReport(node_path=node.path())
     warnings = []
 
-    # Resolution
+    # Resolution — read override values (active when override_camerares=1
+    # and res_fraction="specific", but we report whatever is configured)
     res_x = node.parm("res_overridex")
     res_y = node.parm("res_overridey")
     if res_x and res_y:
         report.resolution = (res_x.eval(), res_y.eval())
-    else:
-        # Fall back to camera resolution override parms
-        rx = node.parm("res_overridex") or node.parm("resx")
-        ry = node.parm("res_overridey") or node.parm("resy")
-        if rx and ry:
-            report.resolution = (rx.eval(), ry.eval())
 
     # Pixel samples
     sx = node.parm("vm_samplesx")
@@ -75,8 +70,8 @@ def audit_mantra_rop(node) -> MantraAuditReport:
     if vm_picture:
         report.output_picture = vm_picture.eval()
 
-    # Image format
-    vm_format = node.parm("vm_image_format")
+    # Image format (vm_device controls output format on Mantra ROPs)
+    vm_format = node.parm("vm_device")
     if vm_format:
         report.image_format = vm_format.evalAsString()
 
