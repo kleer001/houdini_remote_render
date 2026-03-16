@@ -28,6 +28,7 @@ def run_pipeline(
     frame_start: int = 1,
     frame_end: int = 1,
     output_format: str = "png",
+    engine: str = "cpu",
     usdz_filename: str | None = None,
     wrapper_filename: str | None = None,
     dry_run: bool = False,
@@ -41,6 +42,7 @@ def run_pipeline(
         frame_start: First frame to render.
         frame_end: Last frame to render.
         output_format: Image format — "png" or "exr".
+        engine: Karma engine — "cpu" or "xpu".
         usdz_filename: Override USDZ filename (default: {shot_name}.usdz).
         wrapper_filename: Override wrapper filename (default: {shot_name}.usda).
         dry_run: If True, only validate and audit without producing files.
@@ -122,11 +124,32 @@ def run_pipeline(
     # 6b. Write render_info.txt for farm scripts
     render_info_path = os.path.join(shot_dir, "render_info.txt")
     frame_count = frame_end - frame_start + 1
+    renderer = "BRAY_HdKarmaXPU" if engine == "xpu" else "BRAY_HdKarma"
+    device = "GPU" if engine == "xpu" else "CPU"
+    output_stem = os.path.splitext(wrapper_filename)[0]
+
+    # Read resolution from RenderSettings
+    width, height = 1920, 1080
+    from pxr import UsdRender
+    for _prim in stage.Traverse():
+        if _prim.GetTypeName() == "RenderSettings":
+            _res_attr = _prim.GetAttribute("resolution")
+            if _res_attr:
+                _res = _res_attr.Get()
+                width, height = int(_res[0]), int(_res[1])
+            break
+
     with open(render_info_path, "w") as f:
+        f.write(f"usdfile={wrapper_filename}\n")
         f.write(f"startframe={frame_start}\n")
-        f.write(f"endframe={frame_end}\n")
         f.write(f"framecount={frame_count}\n")
-        f.write(f"usdfile=Scenes/{wrapper_filename}\n")
+        f.write(f"frameinc=1\n")
+        f.write(f"device={device}\n")
+        f.write(f"format={output_format}\n")
+        f.write(f"outputname={output_stem}\n")
+        f.write(f"width={width}\n")
+        f.write(f"height={height}\n")
+        f.write(f"renderer={renderer}\n")
     log.append(f"Render info: {render_info_path}")
 
     # 7b. Render script
@@ -137,6 +160,7 @@ def run_pipeline(
         wrapper_filename=wrapper_filename,
         frame_start=frame_start,
         frame_end=frame_end,
+        engine=engine if engine != "cpu" else None,
     )
     log.append(f"Render script: {render_script_path}")
 

@@ -59,6 +59,7 @@ def write_render_script(
         flags.append(f"--engine {engine}")
 
     flags.append("--make-output-path")
+    flags.append("--disable-disk-check")
     flags.append("--headlight none")
 
     if restart_delegate is not None:

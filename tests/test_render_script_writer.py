@@ -98,6 +98,20 @@ class TestWriteRenderScript:
                 content = f.read()
             assert "--make-output-path" in content
 
+    def test_always_includes_disable_disk_check(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_render.sh")
+            write_render_script(
+                output_path=path,
+                shot_name="test",
+                wrapper_filename="test.usda",
+                frame_start=1,
+                frame_end=1,
+            )
+            with open(path) as f:
+                content = f.read()
+            assert "--disable-disk-check" in content
+
     def test_always_includes_headlight_none(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "Scripts", "run_render.sh")

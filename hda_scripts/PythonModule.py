@@ -868,12 +868,31 @@ def on_package_clicked(kwargs):
 
         render_info_path = os.path.join(shot_dir, "render_info.txt")
         frame_count = frame_end - frame_start + 1
+        renderer = "BRAY_HdKarmaXPU" if karma_engine == "xpu" else "BRAY_HdKarma"
+        device = "GPU" if karma_engine == "xpu" else "CPU"
+        output_stem = os.path.splitext(wrapper_filename)[0]
+
+        # Read resolution from RenderSettings
+        width, height = 1920, 1080
+        for _prim in stage.Traverse():
+            if _prim.GetTypeName() == "RenderSettings":
+                _res_attr = _prim.GetAttribute("resolution")
+                if _res_attr:
+                    _res = _res_attr.Get()
+                    width, height = int(_res[0]), int(_res[1])
+                break
+
         with open(render_info_path, "w") as f:
+            f.write(f"usdfile={wrapper_filename}\n")
             f.write(f"startframe={frame_start}\n")
-            f.write(f"endframe={frame_end}\n")
             f.write(f"framecount={frame_count}\n")
-            f.write(f"usdfile=Scenes/{wrapper_filename}\n")
+            f.write(f"frameinc=1\n")
+            f.write(f"device={device}\n")
             f.write(f"format={output_format}\n")
+            f.write(f"outputname={output_stem}\n")
+            f.write(f"width={width}\n")
+            f.write(f"height={height}\n")
+            f.write(f"renderer={renderer}\n")
 
         render_script_path = os.path.join(shot_dir, "Scripts", "run_render.sh")
         write_render_script(
