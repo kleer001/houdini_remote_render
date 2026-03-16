@@ -7,7 +7,6 @@
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10+-green.svg" alt="Python 3.10+"/></a>
   <a href="https://img.shields.io/badge/MCP-Compatible-8A2BE2.svg"><img src="https://img.shields.io/badge/MCP-Compatible-8A2BE2.svg" alt="MCP Compatible"/></a>
   <a href="https://www.sidefx.com/products/houdini/"><img src="https://img.shields.io/badge/Houdini-21.0+-orange.svg" alt="Houdini 21.0+"/></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/Tests-103%20CI%20%2B%2029%20Houdini-brightgreen.svg" alt="Tests"/></a>
 </p>
 <p align="center">
   <a href="https://github.com/kleer001/houdini_remote_render/commits"><img src="https://img.shields.io/github/last-commit/kleer001/houdini_remote_render.svg" alt="Last Commit"/></a>
