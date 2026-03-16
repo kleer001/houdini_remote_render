@@ -12,7 +12,9 @@ Houdini Remote Render & Cache — a collection of Houdini HDAs that package scen
 
 2. **Remote File Cache** — a SOP HDA that wraps a File Cache SOP with remote packaging. Drop-in replacement for File Cache with identical parameters, plus a "Package for Remote" button that saves a portable `.hip` with rewritten cache paths, an hbatch launch script, and metadata.
 
-3. **Mantra / Redshift ROPs** — planned. Remote packaging for Mantra and Redshift render jobs.
+3. **Mantra Render Packager** — a ROP HDA that wraps a Mantra ROP with remote packaging. Saves a portable `.hip` with rewritten output paths, generates an hbatch launch script, and writes metadata/manifest.
+
+4. **Redshift ROP** — planned. Remote packaging for Redshift render jobs.
 
 **Environment:** Houdini 21.0+ (Indie license, `.hdalc` extension), Python 3.11+, Linux. HFS at `/opt/hfs21.0.631`.
 
@@ -100,10 +102,41 @@ Both follow the same sequence: validate → audit → create dirs → inject out
 
 **Output structure:** `$HIP/{shot_name}_P{pod}T{team}_v{NNN}/` with subdirs: `Cache/`, `Scenes/`, `Scripts/`.
 
+### Mantra Render Packager (ROP)
+
+**HDA structure:** ROP subnet wrapping an internal Mantra ROP (`ifd`) node. All essential Mantra parameters are bubbled up via channel references. Remote packaging parameters are in a separate "Remote Package" tab.
+
+**Pipeline:** validate → create dirs → backup .hip → save portable .hip (with rewritten `vm_picture`) → write render_info.txt → write run_render.sh → write manifest.
+
+**Modules:**
+
+1. **mantra_validator** — Mantra ROP type check (accepts `ifd` and versioned variants), output picture validation. Reuses `validate_frame_range()` from `cache_validator.py`.
+2. **mantra_auditor** — reads Mantra ROP params into a `MantraAuditReport` dataclass (resolution, samples, camera, render engine, AOVs)
+3. **mantra_scene_writer** — saves portable `.hip` with rewritten `vm_picture` pointing to `$HIP/../Output/`. Reuses `backup_hip_as_zip()` from `cache_scene_writer.py`.
+4. **mantra_script_writer** — generates executable `run_render.sh` using `hbatch -c "render -Va -f start end inc rop_path"`. The script `cd`s into `Scenes/` so `$HIP/../Output/` resolves correctly.
+5. **mantra_info_writer** — writes machine-readable `render_info.txt` with renderer=mantra, resolution, samples, camera, etc.
+6. **mantra_manifest** — human-readable packaging report with render-specific sections
+
+**HDA scripts (`hda_scripts_mantra/`):**
+
+- `PythonModule.py` — verify and package callbacks; `_ensure_src_path()` pattern same as other packagers
+- `btn_verify.py` / `btn_package.py` — one-liners: `hou.phm().on_verify_clicked(kwargs)`
+- `OnCreated.py` — auto-wires into ROP network, sets forest green color `(0.2, 0.6, 0.3)`, creates network box
+
+**Key implementation details:**
+- Uses `hbatch` (not `hython` or `husk`) because Mantra is a ROP — `hbatch` natively supports `render -f` commands
+- Mantra's node type is `ifd` — validator uses `startswith("ifd")`
+- Only rewrites `vm_picture` in v1; AOV paths typically derive from `vm_picture` via expressions
+- The render script `cd`s into `Scenes/` so `$HIP/../Output/` resolves to the package's `Output/` directory
+
+**Output structure:** `$HIP/{shot_name}_P{pod}T{team}_v{NNN}/` with subdirs: `Output/`, `Scenes/`, `Scripts/`.
+
 ## Shared modules
 
-- **`validator.py`** — `validate_shot_name()` and `validate_hip_saved()` are used by both HDAs
-- **`platform_utils.py`** — `ensure_dir()`, `normalize_path()`, `check_disk_space()` are used by both HDAs
+- **`validator.py`** — `validate_shot_name()` and `validate_hip_saved()` are used by all HDAs
+- **`platform_utils.py`** — `ensure_dir()`, `normalize_path()`, `check_disk_space()` are used by all HDAs
+- **`cache_validator.py`** — `validate_frame_range()` is reused by the Mantra packager
+- **`cache_scene_writer.py`** — `backup_hip_as_zip()` is reused by the Mantra packager
 
 ## Deliverable = HDA + src/
 
