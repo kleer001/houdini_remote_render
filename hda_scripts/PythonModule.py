@@ -873,6 +873,7 @@ def on_package_clicked(kwargs):
             f.write(f"endframe={frame_end}\n")
             f.write(f"framecount={frame_count}\n")
             f.write(f"usdfile=Scenes/{wrapper_filename}\n")
+            f.write(f"format={output_format}\n")
 
         render_script_path = os.path.join(shot_dir, "Scripts", "run_render.sh")
         write_render_script(
