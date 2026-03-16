@@ -28,7 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/kleer001/houdini_remote_render/main
 irm https://raw.githubusercontent.com/kleer001/houdini_remote_render/main/scripts/bootstrap.ps1 | iex
 ```
 
-Restart Houdini. Two HDAs appear in the Tab menu.
+Restart Houdini. Three HDAs appear in the Tab menu.
 
 ## HDAs
 
@@ -72,7 +72,7 @@ cd SHOT_NAME_P1T1_v001
 bash Scripts/run_all.sh    # runs caches in dependency order, then renders
 ```
 
-The dependency resolver follows both visible wires and "virtual wires" — Object Merge cross-references, file-on-disk coupling, expression references, and code-level `op:` paths — so the execution order is always correct, even for complex networks.
+The dependency resolver follows both visible wires and "virtual wires" — Object Merge cross-references, file-on-disk coupling, expression references, and code-level `op:` paths — so the execution order is correct for typical production networks.
 
 ## Updating
 
@@ -151,7 +151,7 @@ Scenes/              — USDZ archive + .usda wrapper
 Scripts/             — run_render.sh (husk launcher)
 render_info.txt      — Frame range and USD filename
 {shot}_manifest.txt  — Human-readable packaging report
-{shot}.hip.zip       — HIP backup
+{hip_filename}.zip   — HIP backup
 ```
 
 **Combined cache + render** (when upstream caches are detected):
@@ -272,12 +272,14 @@ The shipped HDAs use the `.hdalc` (Indie) extension. If you're on a different Ho
 cd /path/to/houdini_remote_render/hda
 
 # Commercial / FX  (.hdalc → .hda)
-hotl -l karma_usd_packager.hdalc temp_dir && hotl -c temp_dir karma_usd_packager.hda && rm -rf temp_dir
-hotl -l remote_file_cache.hdalc temp_dir && hotl -c temp_dir remote_file_cache.hda && rm -rf temp_dir
+for hda in karma_usd_packager remote_file_cache remote_mantra_render; do
+    hotl -l ${hda}.hdalc temp_dir && hotl -c temp_dir ${hda}.hda && rm -rf temp_dir
+done
 
 # Apprentice  (.hdalc → .hdanc)
-hotl -l karma_usd_packager.hdalc temp_dir && hotl -c temp_dir karma_usd_packager.hdanc && rm -rf temp_dir
-hotl -l remote_file_cache.hdalc temp_dir && hotl -c temp_dir remote_file_cache.hdanc && rm -rf temp_dir
+for hda in karma_usd_packager remote_file_cache remote_mantra_render; do
+    hotl -l ${hda}.hdalc temp_dir && hotl -c temp_dir ${hda}.hdanc && rm -rf temp_dir
+done
 ```
 
 Then update `HOUDINI_OTLSCAN_PATH` or your package file if necessary — Houdini scans by extension, so the new files will be picked up automatically from the same `hda/` directory. Restart Houdini after recompiling.
@@ -298,10 +300,10 @@ If `hotl` is not on your PATH, source the Houdini environment first: `cd $HFS &&
 <summary><strong>Testing</strong></summary>
 
 ```bash
-# CI tests (no Houdini required) — 171 tests
+# CI tests (no Houdini required) — 172 tests
 pytest -m "not houdini"
 
-# Houdini integration tests (requires $HFS) — 34 tests
+# Houdini integration tests (requires $HFS via hython subprocess) — 34 tests
 export HFS=/opt/hfs21.0.631
 pytest -m "houdini" -v
 
