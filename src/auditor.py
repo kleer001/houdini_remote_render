@@ -211,7 +211,7 @@ def check_resolution_mismatches(stage) -> list[str]:
         if prim.GetTypeName() != "RenderProduct":
             continue
         attr = prim.GetAttribute("resolution")
-        if not attr:
+        if not attr or not attr.IsAuthored():
             continue
         prod_res = attr.Get()
         if prod_res and prod_res != settings_res:
