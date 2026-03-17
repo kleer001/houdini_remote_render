@@ -167,11 +167,17 @@ def main():
     #
     hip_path = os.path.join(shot_root, hip_file)
 
+    # Escape paths for embedding in a Python string literal.
+    # Replace backslashes (Windows) and single quotes (O'Brien etc.)
+    # so the hython one-liner doesn't break.
+    safe_hip = hip_path.replace("\\", "\\\\").replace("'", "\\'")
+    safe_node = cache_node.replace("\\", "\\\\").replace("'", "\\'")
+
     py_code = (
         "import hou, sys; "
-        f"hou.hipFile.load(r'{hip_path}'); "
-        f"node = hou.node(r'{cache_node}'); "
-        f"assert node, 'Node {cache_node} not found'; "
+        f"hou.hipFile.load('{safe_hip}'); "
+        f"node = hou.node('{safe_node}'); "
+        f"assert node, 'Node {safe_node} not found'; "
         "[node.parm(p).deleteAllKeyframes() for p in ('trange','f1','f2','f3')]; "
         f"node.parm('trange').set(1); "
         f"node.parm('f1').set({start}); "
@@ -196,7 +202,7 @@ def main():
         log.write(f"  {k} = {v}\n")
     log.write("---\n\n")
 
-    cmd_str = " ".join(cmd)
+    cmd_str = subprocess.list2cmdline(cmd)
     log.write(f"Command:\n  {cmd_str}\n\n")
     log.flush()
 

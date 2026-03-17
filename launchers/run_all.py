@@ -42,24 +42,48 @@ def find_shot_root():
 def discover_scripts(scripts_dir):
     """Find cache and render scripts in the Scripts/ directory.
 
-    Returns (cache_scripts, render_script) where:
-        cache_scripts: sorted list of run_cache_*.py paths
-        render_script: path to run_render.py, or None
-    """
-    # Cache scripts — sorted by name (which sorts by number: 001, 002, ...)
-    cache_pattern = os.path.join(scripts_dir, "run_cache_*.py")
-    cache_scripts = sorted(glob.glob(cache_pattern))
+    Discovers both .py and .sh cache scripts.  Combined cache+render
+    packages generate per-cache .sh scripts (run_cache_001_sim.sh etc.)
+    while standalone cache packages use run_cache.py.
 
-    # Render script
-    render_script = os.path.join(scripts_dir, "run_render.py")
-    if not os.path.isfile(render_script):
+    Returns (cache_scripts, render_script) where:
+        cache_scripts: sorted list of (path, is_python) tuples
+        render_script: (path, is_python) tuple, or None
+    """
+    # Cache scripts — check .py first, then .sh
+    # Sorted by name (which sorts by number: 001, 002, ...)
+    py_caches = sorted(glob.glob(os.path.join(scripts_dir, "run_cache_*.py")))
+    sh_caches = sorted(glob.glob(os.path.join(scripts_dir, "run_cache_*.sh")))
+
+    cache_scripts = []
+    # Prefer .py when both exist for the same base name
+    sh_bases = {os.path.splitext(os.path.basename(s))[0] for s in sh_caches}
+    for s in py_caches:
+        cache_scripts.append((s, True))
+        sh_bases.discard(os.path.splitext(os.path.basename(s))[0])
+    for s in sh_caches:
+        if os.path.splitext(os.path.basename(s))[0] in sh_bases:
+            cache_scripts.append((s, False))
+    cache_scripts.sort(key=lambda x: os.path.basename(x[0]))
+
+    # Render script — prefer .py, fall back to .sh
+    render_py = os.path.join(scripts_dir, "run_render.py")
+    render_sh = os.path.join(scripts_dir, "run_render.sh")
+    if os.path.isfile(render_py):
+        render_script = (render_py, True)
+    elif os.path.isfile(render_sh):
+        render_script = (render_sh, False)
+    else:
         render_script = None
 
     return cache_scripts, render_script
 
 
-def run_step(script_path, step_num, total, log, dry_run=False):
-    """Run one Python script as a subprocess.
+def run_step(script_path, is_python, step_num, total, log, dry_run=False):
+    """Run a script as a subprocess.
+
+    Python scripts (.py) are run with the same interpreter as this script.
+    Shell scripts (.sh) are run with bash.
 
     Returns the exit code (0 on dry run).
     """
@@ -69,14 +93,23 @@ def run_step(script_path, step_num, total, log, dry_run=False):
     print(f"--- {header} ---")
     log.write(f"--- {header} ---\n")
 
-    # Use the same Python interpreter that's running this script
-    cmd = [sys.executable, script_path]
-    if dry_run:
-        cmd.append("--dry-run")
+    if is_python:
+        cmd = [sys.executable, script_path]
+        if dry_run:
+            cmd.append("--dry-run")
+    else:
+        # Shell script — use bash (Linux/macOS)
+        cmd = ["bash", script_path]
 
-    cmd_str = " ".join(cmd)
+    cmd_str = subprocess.list2cmdline(cmd)
     log.write(f"Command: {cmd_str}\n\n")
     log.flush()
+
+    if dry_run and not is_python:
+        # Shell scripts don't have --dry-run, so just print the command
+        print(f"  DRY RUN — would execute: {cmd_str}")
+        log.write(f"DRY RUN — not executed.\n\n")
+        return 0
 
     process = subprocess.Popen(
         cmd,
@@ -141,9 +174,9 @@ def main():
     final_rc = 0
 
     # --- Run caches in order ---
-    for script in cache_scripts:
+    for script_path, is_python in cache_scripts:
         step += 1
-        rc = run_step(script, step, total_steps, log, dry_run=args.dry_run)
+        rc = run_step(script_path, is_python, step, total_steps, log, dry_run=args.dry_run)
         if rc != 0:
             final_rc = rc
             print(f"ERROR: Cache step failed (exit code {rc}). Stopping.")
@@ -153,7 +186,8 @@ def main():
     # --- Run render ---
     if final_rc == 0 and render_script:
         step += 1
-        final_rc = run_step(render_script, step, total_steps, log, dry_run=args.dry_run)
+        render_path, render_is_py = render_script
+        final_rc = run_step(render_path, render_is_py, step, total_steps, log, dry_run=args.dry_run)
 
     # --- Finish ---
     elapsed = (datetime.datetime.now() - t0).total_seconds()

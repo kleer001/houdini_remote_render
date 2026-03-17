@@ -326,7 +326,8 @@ def open_log(shot_root):
 
 def log_command(log, cmd, label="Command"):
     """Write a command to the log file and to stdout."""
-    cmd_str = " ".join(cmd)
+    # list2cmdline handles quoting for paths with spaces
+    cmd_str = subprocess.list2cmdline(cmd)
     log.write(f"{label}:\n  {cmd_str}\n\n")
     log.flush()
     print(f"{label}:")
@@ -433,7 +434,6 @@ def main():
         # Mantra needs texture search path
         if renderer == "mantra":
             tex_dir = os.path.join(shot_root, "Textures")
-            existing = os.environ.get("HOUDINI_TEXTURE_PATH", "")
             os.environ["HOUDINI_TEXTURE_PATH"] = tex_dir + os.pathsep + "&"
 
     elif renderer == "redshift":
