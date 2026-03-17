@@ -1,4 +1,4 @@
-"""Write machine-readable render_info.txt for remote Mantra execution."""
+"""Write machine-readable render_info.txt for remote Mantra IFD execution."""
 
 import os
 from datetime import datetime
@@ -17,7 +17,10 @@ def write_mantra_info(
     camera: str,
     rop_node_path: str,
     output_picture: str,
-    hip_filename: str,
+    ifd_count: int,
+    ifd_pattern: str,
+    texture_count: int = 0,
+    textures_size_mb: float = 0.0,
     houdini_version: str = "",
 ) -> None:
     """Write render_info.txt with all metadata needed for remote execution.
@@ -35,7 +38,10 @@ def write_mantra_info(
         camera: Camera path.
         rop_node_path: Houdini node path to the Mantra ROP.
         output_picture: Output file pattern relative to package root.
-        hip_filename: Name of the .hip file in Scenes/.
+        ifd_count: Number of IFD files generated.
+        ifd_pattern: IFD filename pattern (printf-style).
+        texture_count: Number of textures gathered.
+        textures_size_mb: Total texture size in MB.
         houdini_version: Houdini version string.
     """
     frame_count = int((frame_end - frame_start) / frame_inc) + 1 if frame_inc > 0 else 0
@@ -44,6 +50,7 @@ def write_mantra_info(
         f"shot_name={shot_name}",
         f"folder_name={folder_name}",
         f"renderer=mantra",
+        f"method=ifd",
         f"render_engine={render_engine}",
         f"startframe={int(frame_start)}",
         f"endframe={int(frame_end)}",
@@ -54,7 +61,10 @@ def write_mantra_info(
         f"camera={camera}",
         f"rop_node={rop_node_path}",
         f"output_picture={output_picture}",
-        f"hipfile=Scenes/{hip_filename}",
+        f"ifd_count={ifd_count}",
+        f"ifd_pattern={ifd_pattern}",
+        f"texture_count={texture_count}",
+        f"textures_size_mb={textures_size_mb:.2f}",
         f"houdini_version={houdini_version}",
         f"generated_at={datetime.now().isoformat(timespec='seconds')}",
     ]

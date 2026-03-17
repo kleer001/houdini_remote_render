@@ -1,7 +1,8 @@
 """HDA-embedded Python entry points for remote_mantra_render.
 
 Wraps a Mantra ROP with remote packaging capabilities.
-All paths are relative to $HIP (the directory containing the .hip file).
+Generates IFD files with embedded geometry/shaders for license-free
+remote rendering via the mantra standalone renderer.
 """
 
 import os
@@ -102,7 +103,7 @@ def on_verify_clicked(kwargs):
     _ensure_src_path(node)
 
     from src.validator import validate_shot_name, validate_hip_saved
-    from src.mantra_validator import validate_mantra_node, validate_output_picture
+    from src.mantra_validator import validate_mantra_node, validate_output_picture, warn_output_picture
     from src.cache_validator import validate_frame_range
 
     _log(node, "=" * 50)
@@ -160,6 +161,14 @@ def on_verify_clicked(kwargs):
     ok, msg = validate_output_picture(output_picture)
     if ok:
         _log(node, f"[OK] Output: {output_picture}")
+        # Check for hyphen-before-$F pitfall (uses unexpanded path)
+        try:
+            raw_pic = mantra.parm("vm_picture").unexpandedString()
+        except Exception:
+            raw_pic = output_picture
+        pic_warn = warn_output_picture(raw_pic)
+        if pic_warn:
+            _log(node, f"[WARN] {pic_warn}")
     else:
         _log(node, f"[FAIL] Output: {msg}")
         failures += 1
@@ -192,7 +201,7 @@ def on_verify_clicked(kwargs):
 # ---------- Package ----------
 
 def on_package_clicked(kwargs):
-    """Full packaging — creates portable folder with .hip, scripts, metadata."""
+    """Full packaging — generates IFDs, gathers textures, writes scripts."""
     import hou
 
     node = kwargs["node"]
@@ -202,7 +211,8 @@ def on_package_clicked(kwargs):
     from src.validator import validate_shot_name, validate_hip_saved
     from src.mantra_validator import validate_mantra_node, validate_output_picture
     from src.cache_validator import validate_frame_range
-    from src.mantra_scene_writer import save_portable_hip
+    from src.mantra_ifd_writer import generate_ifds
+    from src.mantra_texture_gatherer import scan_ifds_for_textures, gather_textures
     from src.cache_scene_writer import backup_hip_as_zip
     from src.mantra_info_writer import write_mantra_info
     from src.mantra_script_writer import write_mantra_script
@@ -214,12 +224,12 @@ def on_package_clicked(kwargs):
     warnings = []
 
     _log(node, "=" * 50)
-    _log(node, "PACKAGE — Remote Mantra Render")
+    _log(node, "PACKAGE — Remote Mantra Render (IFD)")
     _log(node, "=" * 50)
     _log(node, "")
 
     # --- Step 1: Validate ---
-    _log(node, "[1/7] Validating...")
+    _log(node, "[1/9] Validating...")
 
     shot_name = node.parm("shot_name").eval()
     ok, msg = validate_shot_name(shot_name)
@@ -278,7 +288,7 @@ def on_package_clicked(kwargs):
     _log(node, "  All checks passed.")
 
     # --- Step 2: Create directories ---
-    _log(node, "[2/7] Creating directories...")
+    _log(node, "[2/9] Creating directories...")
 
     hip_dir = _get_hip_dir()
     folder_name = _build_folder_name(node)
@@ -298,7 +308,7 @@ def on_package_clicked(kwargs):
         else:
             _log(node, "  [WARN] Folder exists — overwriting (headless mode).")
 
-    for subdir in ("Output", "Scenes", "Scripts"):
+    for subdir in ("Output", "IFDs", "Textures", "Scripts"):
         ensure_dir(os.path.join(shot_root, subdir))
 
     _log(node, f"  Created: {folder_name}/")
@@ -312,29 +322,77 @@ def on_package_clicked(kwargs):
         _log(node, f"  [WARN] {w}")
 
     # --- Step 3: Backup .hip ---
-    _log(node, "[3/7] Backing up .hip file...")
+    _log(node, "[3/9] Backing up .hip file...")
 
     zip_path = os.path.join(shot_root, f"{shot_name}_original.hip.zip")
     backup_hip_as_zip(zip_path)
     zip_size_mb = os.path.getsize(zip_path) / (1024 * 1024)
     _log(node, f"  Backup: {zip_size_mb:.1f} MB")
 
-    # --- Step 4: Save portable .hip ---
-    _log(node, "[4/7] Saving portable .hip...")
+    # --- Step 4: Generate IFDs ---
+    _log(node, "[4/9] Generating IFDs (this may take a while)...")
 
-    hip_filename = f"{shot_name}.hip"
-    portable_hip = os.path.join(shot_root, "Scenes", hip_filename)
-    save_portable_hip(mantra, portable_hip)
-    hip_size_mb = os.path.getsize(portable_hip) / (1024 * 1024)
-    _log(node, f"  Saved: Scenes/{hip_filename} ({hip_size_mb:.1f} MB)")
-
-    # --- Step 5: Write render_info.txt ---
-    _log(node, "[5/7] Writing render_info.txt...")
-
-    rop_node_path = mantra.path()
+    ifd_dir = os.path.join(shot_root, "IFDs")
     output_filename = os.path.basename(output_picture_raw) if output_picture_raw else "render.$F4.exr"
     output_pattern = f"Output/{output_filename}"
 
+    # Output path baked into IFD — relative to CWD (which will be IFDs/)
+    ifd_output_picture = f"../Output/{output_filename}"
+
+    ifd_paths = generate_ifds(
+        mantra_node=mantra,
+        ifd_dir=ifd_dir,
+        shot_name=shot_name,
+        output_picture=ifd_output_picture,
+        frame_start=int(f_start),
+        frame_end=int(f_end),
+        frame_inc=int(f_inc),
+    )
+
+    ifd_total_size = sum(os.path.getsize(p) for p in ifd_paths)
+    ifd_total_size_mb = ifd_total_size / (1024 * 1024)
+    _log(node, f"  Generated {len(ifd_paths)} IFDs ({ifd_total_size_mb:.1f} MB)")
+
+    expected_count = int((f_end - f_start) / f_inc) + 1
+    if len(ifd_paths) < expected_count:
+        w = f"Expected {expected_count} IFDs but only {len(ifd_paths)} were generated"
+        warnings.append(w)
+        _log(node, f"  [WARN] {w}")
+
+    # --- Step 5: Gather textures ---
+    _log(node, "[5/9] Scanning IFDs for textures...")
+
+    texture_paths = scan_ifds_for_textures(ifd_paths)
+    textures_dir = os.path.join(shot_root, "Textures")
+
+    if texture_paths:
+        copied = gather_textures(texture_paths, textures_dir)
+        textures_size = sum(os.path.getsize(p) for p in copied.values())
+        textures_size_mb = textures_size / (1024 * 1024)
+        _log(node, f"  Gathered {len(copied)} textures ({textures_size_mb:.1f} MB)")
+    else:
+        textures_size_mb = 0.0
+        _log(node, "  No textures found.")
+
+    # --- Step 6: Write run_render.sh ---
+    _log(node, "[6/9] Writing run_render.sh...")
+
+    ifd_printf_pattern = f"{shot_name}.%04d.ifd"
+    script_path = os.path.join(shot_root, "Scripts", "run_render.sh")
+    write_mantra_script(
+        output_path=script_path,
+        shot_name=shot_name,
+        ifd_pattern=ifd_printf_pattern,
+        frame_start=int(f_start),
+        frame_end=int(f_end),
+        frame_inc=int(f_inc),
+    )
+    _log(node, "  Written and made executable.")
+
+    # --- Step 7: Write render_info.txt ---
+    _log(node, "[7/9] Writing render_info.txt...")
+
+    rop_node_path = mantra.path()
     houdini_version = hou.applicationVersionString()
 
     info_path = os.path.join(shot_root, "render_info.txt")
@@ -351,28 +409,16 @@ def on_package_clicked(kwargs):
         camera=audit.camera,
         rop_node_path=rop_node_path,
         output_picture=output_pattern,
-        hip_filename=hip_filename,
+        ifd_count=len(ifd_paths),
+        ifd_pattern=ifd_printf_pattern,
+        texture_count=len(texture_paths),
+        textures_size_mb=textures_size_mb,
         houdini_version=houdini_version,
     )
     _log(node, "  Written.")
 
-    # --- Step 6: Write run_render.sh ---
-    _log(node, "[6/7] Writing run_render.sh...")
-
-    script_path = os.path.join(shot_root, "Scripts", "run_render.sh")
-    write_mantra_script(
-        output_path=script_path,
-        shot_name=shot_name,
-        hip_filename=hip_filename,
-        rop_node_path=rop_node_path,
-        frame_start=int(f_start),
-        frame_end=int(f_end),
-        frame_inc=int(f_inc),
-    )
-    _log(node, "  Written and made executable.")
-
-    # --- Step 7: Write manifest ---
-    _log(node, "[7/7] Writing manifest...")
+    # --- Step 8: Write manifest ---
+    _log(node, "[8/9] Writing manifest...")
 
     elapsed = time.time() - t_start
 
@@ -392,8 +438,11 @@ def on_package_clicked(kwargs):
         aov_count=audit.aov_count,
         rop_node_path=rop_node_path,
         output_picture=output_pattern,
-        hip_path=f"Scenes/{hip_filename}",
-        hip_size_mb=hip_size_mb,
+        ifd_count=len(ifd_paths),
+        ifd_total_size_mb=ifd_total_size_mb,
+        ifd_pattern=ifd_printf_pattern,
+        texture_count=len(texture_paths),
+        textures_size_mb=textures_size_mb,
         backup_zip_path=f"{shot_name}_original.hip.zip",
         backup_zip_size_mb=zip_size_mb,
         warnings=warnings,
@@ -403,11 +452,14 @@ def on_package_clicked(kwargs):
     write_mantra_manifest(manifest_path, manifest_data)
     _log(node, "  Written.")
 
-    # --- Done ---
+    # --- Step 9: Done ---
+    elapsed = time.time() - t_start
     _log(node, "")
     _log(node, "=" * 50)
     _log(node, f"PACKAGE COMPLETE — {elapsed:.1f}s")
     _log(node, f"Output: {folder_name}/")
+    _log(node, f"IFDs: {len(ifd_paths)} files ({ifd_total_size_mb:.1f} MB)")
+    _log(node, f"Textures: {len(texture_paths)} files ({textures_size_mb:.1f} MB)")
     _log(node, "=" * 50)
 
     if warnings:

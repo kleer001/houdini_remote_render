@@ -1,4 +1,4 @@
-"""Manifest writer for Remote Mantra Render packaging reports."""
+"""Manifest writer for Remote Mantra Render (IFD) packaging reports."""
 
 import os
 from dataclasses import dataclass, field
@@ -8,7 +8,7 @@ from src.platform_utils import ensure_dir
 
 @dataclass
 class MantraManifestData:
-    """Data for the Mantra render packaging manifest."""
+    """Data for the Mantra IFD render packaging manifest."""
     shot_name: str = ""
     folder_name: str = ""
     houdini_version: str = ""
@@ -24,15 +24,18 @@ class MantraManifestData:
     aov_count: int = 0
     rop_node_path: str = ""
     output_picture: str = ""
-    hip_path: str = ""
-    hip_size_mb: float = 0.0
+    ifd_count: int = 0
+    ifd_total_size_mb: float = 0.0
+    ifd_pattern: str = ""
+    texture_count: int = 0
+    textures_size_mb: float = 0.0
     backup_zip_path: str = ""
     backup_zip_size_mb: float = 0.0
     warnings: list[str] = field(default_factory=list)
 
 
 def write_mantra_manifest(output_path: str, data: MantraManifestData) -> None:
-    """Write a human-readable manifest for the Mantra render package.
+    """Write a human-readable manifest for the Mantra IFD render package.
 
     Args:
         output_path: Path to write the manifest file.
@@ -71,12 +74,21 @@ def write_mantra_manifest(output_path: str, data: MantraManifestData) -> None:
         f"AOVs:       {data.aov_count}",
         f"Output:     {data.output_picture}",
         "",
-        "Files",
+        "IFD Files",
         "-" * 50,
-        f"HIP File:   {data.hip_path}",
-        f"HIP Size:   {data.hip_size_mb:.2f} MB",
-        f"Backup:     {data.backup_zip_path}",
-        f"Backup Size:{data.backup_zip_size_mb:.2f} MB",
+        f"Count:      {data.ifd_count}",
+        f"Pattern:    {data.ifd_pattern}",
+        f"Total Size: {data.ifd_total_size_mb:.2f} MB",
+        "",
+        "Textures",
+        "-" * 50,
+        f"Count:      {data.texture_count}",
+        f"Total Size: {data.textures_size_mb:.2f} MB",
+        "",
+        "Backup",
+        "-" * 50,
+        f"Archive:    {data.backup_zip_path}",
+        f"Size:       {data.backup_zip_size_mb:.2f} MB",
         "",
     ]
 

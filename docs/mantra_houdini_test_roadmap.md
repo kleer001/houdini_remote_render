@@ -224,7 +224,7 @@ You probably **cannot**:
 
 **Recommendation:** Start with Phase 2 (end-to-end without HDA) — it covers the most code with the least setup. If that passes, the HDA layer is mostly UI wiring.
 
-## Test Results (2026-03-15, headless hython via houdini-mcp)
+## Test Results (2026-03-16, headless hython via houdini-mcp)
 
 All phases executed and passed against Houdini 21.0.631 headless.
 
@@ -237,8 +237,32 @@ All phases executed and passed against Houdini 21.0.631 headless.
 | 3 — Portable .hip validation | PASSED | `vm_picture`, camera, frame range, resolution all preserved |
 | 4.1 — HDA creation | PASSED | Built programmatically with channel refs + embedded scripts |
 | 4.2 — HDA callbacks | PASSED | Verify + Package both complete all 7 steps |
-| 4.3 — Portable .hip from HDA | PASSED | Output path, camera, frames all correct |
-| 5 — Edge cases | PASSED | Empty output, invalid name, start>end, no camera, trange=0, low samples, ifd::2.0, expression-driven vm_picture |
+| 4.3 — Render script execution | PASSED | 320x240 EXR rendered via `run_render.sh` (sphere + cam + light, ~5s) |
+| 5 — Edge cases | PASSED | All cases verified (see below) |
+
+### Phase 4.3 — Actual Mantra render
+
+Minimal scene: sphere + camera + headlight → packaged → `run_render.sh` executed → `Output/test_render.0001.exr` produced (320x240 OpenEXR, 27KB, ~5s render).
+
+### Phase 5 — Edge cases verified
+
+| Test | Result |
+|------|--------|
+| Empty `vm_picture` | FAIL reported |
+| Invalid shot name (`path/inject`) | FAIL reported |
+| Frame start > end | FAIL reported |
+| No camera assigned | WARN in auditor |
+| `trange=0` (current frame only) | WARN in auditor |
+| Low ray samples | WARN in auditor |
+| Versioned Mantra (`ifd::2.0`) | Accepted by validator |
+| `override_camerares=0` | WARN: resolution depends on camera |
+| Expression-driven `vm_picture` | Expression snapshot/restore works |
+| Hyphen before `$F4` (`render-$F4.exr`) | WARN: MPlay negative-frame pitfall |
+| OnCreated script | Forest green color + network box (manual exec in headless) |
+
+### OnCreated note
+
+`OnCreated` event scripts do not auto-fire in headless `createNode()` calls — this is expected Houdini behavior. The script was verified via manual `exec()` and produces the correct forest green color `(0.2, 0.6, 0.3)` and "Remote Mantra Render" network box.
 
 ### Bugs fixed during testing
 
@@ -248,4 +272,13 @@ All phases executed and passed against Houdini 21.0.631 headless.
 4. **Dead code in resolution fallback** — `mantra_auditor.py`: removed redundant else branch
 5. **`$F4` expanded to frame number** — `mantra_scene_writer.py`: `.eval()` → `.unexpandedString()`
 6. **HDA lock blocks parm modification** — `mantra_scene_writer.py`: added `allowEditingOfContents()` / `matchCurrentDefinition()`
-7. **`hou.ui` crashes in headless mode** — `PythonModule.py`: added `_has_ui()` guard
+7. **`hou.ui` crashes in headless mode** — `PythonModule.py` + `OnCreated.py`: added `_has_ui()` / `hasattr` guards
+8. **`render_engine` default was `"micropoly"`** — `mantra_auditor.py` + `mantra_manifest.py`: changed to `"raytrace"` (Houdini 21 default)
+9. **`vm_picture` in PythonModule used `.eval()`** — expanded `$F4` in metadata; fixed to use `.unexpandedString()`
+10. **`f1`/`f2` parms are expression-driven** — must `deleteAllKeyframes()` before `.set()` (documented in gotchas)
+
+### Refactoring completed
+
+- DRY: `_detect_hfs` / HFS source block / `make_executable` → reuse from `platform_utils`
+- DRY: `_snapshot_parm` / `_restore_parm` → reuse from `cache_scene_writer`
+- Removed inline `from pathlib import Path` → `os.path.basename`

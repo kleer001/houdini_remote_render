@@ -1,6 +1,6 @@
 """Tests for mantra_validator module."""
 
-from src.mantra_validator import validate_mantra_node, validate_output_picture
+from src.mantra_validator import validate_mantra_node, validate_output_picture, warn_output_picture
 
 
 class FakeNode:
@@ -60,3 +60,29 @@ class TestValidateOutputPicture:
     def test_none_path(self):
         ok, msg = validate_output_picture(None)
         assert ok is False
+
+
+class TestWarnOutputPicture:
+    def test_no_warning_for_clean_path(self):
+        assert warn_output_picture("/path/to/render.$F4.exr") is None
+
+    def test_no_warning_for_underscore(self):
+        assert warn_output_picture("/path/to/render_$F4.exr") is None
+
+    def test_no_warning_for_dot(self):
+        assert warn_output_picture("/path/to/render.$F4.exr") is None
+
+    def test_warns_hyphen_before_F(self):
+        result = warn_output_picture("/path/to/render-$F4.exr")
+        assert result is not None
+        assert "MPlay" in result
+
+    def test_warns_hyphen_before_F_no_padding(self):
+        result = warn_output_picture("/path/to/frame-$F.exr")
+        assert result is not None
+
+    def test_no_warning_for_empty(self):
+        assert warn_output_picture("") is None
+
+    def test_no_warning_for_none(self):
+        assert warn_output_picture(None) is None

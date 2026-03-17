@@ -1,4 +1,4 @@
-"""Tests for mantra_script_writer module."""
+"""Tests for mantra_script_writer module (IFD-based)."""
 
 import os
 import stat
@@ -14,8 +14,7 @@ class TestWriteMantraScript:
             write_mantra_script(
                 output_path=path,
                 shot_name="test_shot",
-                hip_filename="test_shot.hip",
-                rop_node_path="/out/mantra1",
+                ifd_pattern="test_shot.%04d.ifd",
                 frame_start=1001,
                 frame_end=1200,
             )
@@ -27,22 +26,20 @@ class TestWriteMantraScript:
             write_mantra_script(
                 output_path=path,
                 shot_name="test_shot",
-                hip_filename="test_shot.hip",
-                rop_node_path="/out/mantra1",
+                ifd_pattern="test_shot.%04d.ifd",
                 frame_start=1001,
                 frame_end=1200,
             )
             st = os.stat(path)
             assert st.st_mode & stat.S_IEXEC
 
-    def test_contains_hbatch_command(self):
+    def test_contains_mantra_command(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "Scripts", "run_render.sh")
             write_mantra_script(
                 output_path=path,
                 shot_name="explosion",
-                hip_filename="explosion.hip",
-                rop_node_path="/out/mantra1",
+                ifd_pattern="explosion.%04d.ifd",
                 frame_start=1001,
                 frame_end=1200,
             )
@@ -51,10 +48,10 @@ class TestWriteMantraScript:
                 content = f.read()
 
             assert "#!/bin/bash" in content
-            assert "hbatch" in content
-            assert "explosion.hip" in content
-            assert "/out/mantra1" in content
-            assert "render" in content
+            assert "mantra -V 2a" in content
+            assert "explosion.%04d.ifd" in content
+            # IFD-based: no hbatch
+            assert "hbatch" not in content
 
     def test_contains_frame_range(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -62,8 +59,7 @@ class TestWriteMantraScript:
             write_mantra_script(
                 output_path=path,
                 shot_name="test",
-                hip_filename="test.hip",
-                rop_node_path="/out/mantra1",
+                ifd_pattern="test.%04d.ifd",
                 frame_start=1001,
                 frame_end=1200,
                 frame_inc=2,
@@ -74,7 +70,7 @@ class TestWriteMantraScript:
 
             assert "1001" in content
             assert "1200" in content
-            assert "-f 1001 1200 -i 2" in content
+            assert "seq 1001 2 1200" in content
 
     def test_contains_shot_info(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -82,8 +78,7 @@ class TestWriteMantraScript:
             write_mantra_script(
                 output_path=path,
                 shot_name="my_render",
-                hip_filename="my_render.hip",
-                rop_node_path="/out/mantra1",
+                ifd_pattern="my_render.%04d.ifd",
                 frame_start=1,
                 frame_end=240,
             )
@@ -100,8 +95,7 @@ class TestWriteMantraScript:
             write_mantra_script(
                 output_path=path,
                 shot_name="test",
-                hip_filename="test.hip",
-                rop_node_path="/out/mantra1",
+                ifd_pattern="test.%04d.ifd",
                 frame_start=1,
                 frame_end=10,
             )
@@ -110,15 +104,14 @@ class TestWriteMantraScript:
                 raw = f.read()
             assert b"\r\n" not in raw
 
-    def test_cd_scenes(self):
-        """Verify the script cd's into Scenes/ before calling hbatch."""
+    def test_cd_ifds(self):
+        """Verify the script cd's into IFDs/ before rendering."""
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "Scripts", "run_render.sh")
             write_mantra_script(
                 output_path=path,
                 shot_name="test",
-                hip_filename="test.hip",
-                rop_node_path="/out/mantra1",
+                ifd_pattern="test.%04d.ifd",
                 frame_start=1,
                 frame_end=10,
             )
@@ -126,4 +119,36 @@ class TestWriteMantraScript:
             with open(path) as f:
                 content = f.read()
 
-            assert "cd Scenes" in content
+            assert "cd IFDs" in content
+
+    def test_contains_texture_path(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_render.sh")
+            write_mantra_script(
+                output_path=path,
+                shot_name="test",
+                ifd_pattern="test.%04d.ifd",
+                frame_start=1,
+                frame_end=10,
+            )
+
+            with open(path) as f:
+                content = f.read()
+
+            assert "HOUDINI_TEXTURE_PATH" in content
+
+    def test_ifd_pattern_in_content(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_render.sh")
+            write_mantra_script(
+                output_path=path,
+                shot_name="shot",
+                ifd_pattern="shot.%04d.ifd",
+                frame_start=1,
+                frame_end=10,
+            )
+
+            with open(path) as f:
+                content = f.read()
+
+            assert "shot.%04d.ifd" in content

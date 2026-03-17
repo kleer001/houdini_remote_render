@@ -23,6 +23,9 @@ class MantraAuditReport:
     frame_end: float = 0
     frame_inc: float = 1
     aov_count: int = 0
+    vm_inlinestorage: bool = False
+    vm_embedvex: bool = False
+    soho_outputmode: int = 0
     warnings: list[str] = field(default_factory=list)
 
     @property
@@ -44,8 +47,13 @@ def audit_mantra_rop(node) -> MantraAuditReport:
     report = MantraAuditReport(node_path=node.path())
     warnings = []
 
-    # Resolution — read override values (active when override_camerares=1
-    # and res_fraction="specific", but we report whatever is configured)
+    # Resolution — check override state, always read configured values
+    override_res = node.parm("override_camerares")
+    if override_res and not override_res.eval():
+        warnings.append(
+            "Resolution override is disabled — "
+            "actual render resolution depends on camera settings."
+        )
     res_x = node.parm("res_overridex")
     res_y = node.parm("res_overridey")
     if res_x and res_y:
@@ -107,6 +115,17 @@ def audit_mantra_rop(node) -> MantraAuditReport:
     num_planes = node.parm("vm_numaux")
     if num_planes:
         report.aov_count = num_planes.eval()
+
+    # IFD-related parms (informational)
+    inline = node.parm("vm_inlinestorage")
+    if inline:
+        report.vm_inlinestorage = bool(inline.eval())
+    embedvex = node.parm("vm_embedvex")
+    if embedvex:
+        report.vm_embedvex = bool(embedvex.eval())
+    soho = node.parm("soho_outputmode")
+    if soho:
+        report.soho_outputmode = soho.eval()
 
     # Warnings
     if report.max_ray_samples < 2:

@@ -4,6 +4,10 @@ Checks that a Mantra ROP exists, has valid parameters, and is ready
 for remote packaging.
 """
 
+import re
+
+_HYPHEN_BEFORE_FRAME_VAR = re.compile(r"-\$F")
+
 
 def validate_mantra_node(node) -> tuple[bool, str]:
     """Check that the node is a valid Mantra ROP.
@@ -39,3 +43,17 @@ def validate_output_picture(path: str) -> tuple[bool, str]:
         return False, "Mantra output picture (vm_picture) is empty."
 
     return True, ""
+
+
+def warn_output_picture(path: str) -> str | None:
+    """Return a warning string if the output path has known pitfalls, else None.
+
+    Checks for hyphens before $F variables which cause MPlay to interpret
+    frame numbers as negative.
+    """
+    if path and _HYPHEN_BEFORE_FRAME_VAR.search(path):
+        return (
+            "Output filename contains '-$F' — MPlay may interpret this as a "
+            "negative frame number. Use '_$F' or '.$F' instead."
+        )
+    return None

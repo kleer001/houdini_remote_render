@@ -1,4 +1,4 @@
-"""Tests for mantra_manifest module."""
+"""Tests for mantra_manifest module (IFD-based)."""
 
 import os
 import tempfile
@@ -76,6 +76,40 @@ class TestWriteMantraManifest:
             assert "/obj/cam1" in content
             assert "/out/mantra1" in content
 
+    def test_includes_ifd_section(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "manifest.txt")
+            data = MantraManifestData(
+                shot_name="test",
+                ifd_count=200,
+                ifd_pattern="test.%04d.ifd",
+                ifd_total_size_mb=450.5,
+            )
+            write_mantra_manifest(path, data)
+
+            with open(path) as f:
+                content = f.read()
+            assert "IFD Files" in content
+            assert "200" in content
+            assert "test.%04d.ifd" in content
+            assert "450.50" in content
+
+    def test_includes_texture_section(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "manifest.txt")
+            data = MantraManifestData(
+                shot_name="test",
+                texture_count=15,
+                textures_size_mb=120.3,
+            )
+            write_mantra_manifest(path, data)
+
+            with open(path) as f:
+                content = f.read()
+            assert "Textures" in content
+            assert "15" in content
+            assert "120.30" in content
+
     def test_includes_warnings(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "manifest.txt")
@@ -108,3 +142,15 @@ class TestWriteMantraManifest:
             with open(path, "rb") as f:
                 raw = f.read()
             assert b"\r\n" not in raw
+
+    def test_no_hip_fields(self):
+        """IFD-based manifest should not have HIP File section."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "manifest.txt")
+            data = MantraManifestData(shot_name="test")
+            write_mantra_manifest(path, data)
+
+            with open(path) as f:
+                content = f.read()
+            assert "HIP File:" not in content
+            assert "HIP Size:" not in content

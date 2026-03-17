@@ -30,11 +30,12 @@ def onCreate(kwargs):
         netbox.addNode(node)
         netbox.fitAroundContents()
 
-        # Open parameter pane
-        node.setSelected(True, clear_all_selected=True)
-        pane = hou.ui.paneTabOfType(hou.paneTabType.Parm)
-        if pane:
-            pane.setCurrentNode(node)
+        # Open parameter pane (skip in headless mode)
+        if hasattr(hou, "ui") and hou.ui is not None:
+            node.setSelected(True, clear_all_selected=True)
+            pane = hou.ui.paneTabOfType(hou.paneTabType.Parm)
+            if pane:
+                pane.setCurrentNode(node)
 
     except Exception as e:
         print(f"[remote_mantra_render] OnCreated warning: {e}")
