@@ -2,6 +2,23 @@
 
 > Remote packaging for Redshift USD render jobs via `redshiftUsdCmdLine`.
 
+## Current Status (2026-03-16)
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| **Phase 0** — Shared infrastructure | **DONE** | `platform_utils.py` extended; `output_injector.py` confirmed compatible; `auditor.py` reused as-is (parameterization deferred — not needed) |
+| **Phase 1** — Core modules | **DONE** | 4 modules implemented (`redshift_validator`, `redshift_script_writer`, `redshift_info_writer`, `redshift_manifest`). `redshift_auditor` skipped (reuse `auditor.py`). `redshift_converter` deferred to v2. |
+| **Phase 2** — HDA scripts | **DONE** | `hda_scripts_redshift/`: PythonModule, OnCreated, btn_verify, btn_package |
+| **Phase 3** — HDA definition | **DONE** | `hda/redshift_usd_packager.hdalc` created via headless hython script |
+| **Phase 4** — Tests | **DONE** | 56 new CI tests (254 total). E2e pipeline test verified via hython. |
+| **Phase 5** — Integration | **DONE** | `orchestration_writer`, `dependency_resolver`, `wrapper_writer` confirmed compatible. |
+| **Phase 6** — Render testing | **BLOCKED** | Ghost trial activation stuck at Maxon (500 error consumed seat). `libtbb.so.2` also missing for `redshiftUsdCmdLine`. Test infrastructure ready. |
+
+### Blockers
+
+- **Redshift license:** Initial trial activation received a 500 error from Maxon's backend, consuming the activation slot without actually activating. Maxon support contacted. Once resolved: `mx1 license assign "net.maxon.license.app.bundle_maxonone~trial"`
+- **`libtbb.so.2`:** `redshiftUsdCmdLine` links against TBB 2.x but the system has TBB 12.x (`libtbb.so.12`). May need older TBB package or Redshift update.
+
 ## Context
 
 The Karma USD Packager (LOP) packages a Solaris stage into a self-contained
@@ -115,7 +132,7 @@ a secondary path later.
 
 ---
 
-## Phase 0 — Shared Infrastructure Prep
+## Phase 0 — Shared Infrastructure Prep ✅ DONE
 
 Before writing Redshift-specific code, small changes to shared modules make
 them renderer-agnostic.
@@ -146,15 +163,18 @@ is the standard and works across both husk and `redshiftUsdCmdLine`.
 
 **No changes needed** to `output_injector.py` for Redshift support.
 
-### 0.3 `auditor.py` — Parameterize warning messages
+### 0.3 `auditor.py` — Parameterize warning messages (DEFERRED)
 
-Replace hardcoded "Karma" / "husk" / "Karma RenderSettings LOP" strings with
-a `renderer_label` parameter so the same audit logic can emit
-renderer-appropriate warnings. The core USD traversal is already generic.
+Originally planned to replace hardcoded "Karma" / "husk" strings with a
+`renderer_label` parameter. **Deferred** — the existing `auditor.py` is used
+as-is by the Redshift packager. The generic warnings (no camera, no lights,
+no render products) are renderer-agnostic. Redshift-specific validation
+(checking for `redshift:` attributes, UsdPreviewSurface warnings) lives in
+the new `redshift_validator.py` module instead.
 
 ---
 
-## Phase 1 — Core Redshift Modules (`src/`)
+## Phase 1 — Core Redshift Modules (`src/`) ✅ DONE
 
 Follow the Mantra pattern: a parallel set of `redshift_*.py` modules.
 
@@ -168,27 +188,15 @@ Validates that the connected node is a Redshift-compatible LOP setup.
 - Reuse `validate_shot_name()` and `validate_hip_saved()` from `validator.py`
 - Reuse `validate_frame_range()` from `cache_validator.py`
 
-### 1.2 `redshift_auditor.py`
+### 1.2 `redshift_auditor.py` (SKIPPED — not needed)
 
-Reads the USD stage and reports Redshift-specific render configuration.
-
-```python
-@dataclass
-class RedshiftAuditReport:
-    has_render_settings: bool
-    has_camera: bool
-    has_render_products: bool
-    has_redshift_settings: bool   # NEW: redshift: attrs on RenderSettings
-    has_lights: bool
-    light_count: int
-    resolution: tuple[int, int]
-    aov_names: list[str]
-    gpu_device: str | None        # NEW: requested GPU device
-    warnings: list[str]
-```
-
-Leverages the generic traversal from `auditor.py` but adds Redshift-specific
-attribute detection (the `redshift:` namespace on prims).
+Originally planned as a separate Redshift audit module. **Skipped** because:
+- The existing `auditor.py` handles all generic USD stage auditing (camera,
+  lights, render settings, render products, instances, VEX shaders).
+- Redshift-specific checks (`redshift:` attributes, UsdPreviewSurface
+  detection) live in `redshift_validator.py`.
+- The PythonModule calls both `audit_stage()` and `validate_redshift_stage()`
+  to get full coverage.
 
 ### 1.3 `redshift_script_writer.py`
 
@@ -245,7 +253,7 @@ Frame flags are identical: `-f START -n COUNT -i INC`.
 The script still `cd Scenes` before rendering (same CWD requirement for
 relative productName paths).
 
-### 1.4 `redshift_converter.py` (optional)
+### 1.4 `redshift_converter.py` (DEFERRED to v2)
 
 Pre-converts textures to `.rstexbin` using `redshiftTextureProcessor`.
 
@@ -289,7 +297,7 @@ includes Redshift-specific sections (GPU device, texture cache, OCIO config).
 
 ---
 
-## Phase 2 — HDA Scripts (`hda_scripts_redshift/`)
+## Phase 2 — HDA Scripts (`hda_scripts_redshift/`) ✅ DONE
 
 ### 2.1 `PythonModule.py`
 
@@ -341,7 +349,7 @@ hou.phm().on_verify_clicked(kwargs)
 
 ---
 
-## Phase 3 — HDA Definition
+## Phase 3 — HDA Definition ✅ DONE
 
 ### 3.1 Create `hda/redshift_usd_packager.hdalc`
 
@@ -374,32 +382,32 @@ live stage. All packaging writes to disk only.
 
 ---
 
-## Phase 4 — Tests
+## Phase 4 — Tests ✅ DONE
 
-Follow the existing test patterns. All tests marked `not houdini` must pass
-in CI.
+56 new CI tests, 254 total passing. E2e pipeline verified via hython.
 
-### New test files:
+### Test files created:
 
-| File | Tests |
+| File | Test Count | Coverage |
+|---|---|---|
+| `test_redshift_validator.py` | 12 | Stage validation, UsdPreviewSurface warnings |
+| `test_redshift_script_writer.py` | 20 | All CLI flags, frame count, env block, executable bit |
+| `test_redshift_info_writer.py` | 7 | All fields, optional fields, newline format |
+| `test_redshift_manifest.py` | 12 | All sections, optional tex cache/OCIO, warnings |
+| `test_platform_utils.py` (additions) | 5 | `detect_redshift()`, `redshift_env_block()` |
+| `test_redshift_e2e.py` | (houdini) | Full pipeline: validate → flatten → USDZ → wrapper → script → info → manifest |
+| `test_redshift_render.py` | (houdini) | Actual `redshiftUsdCmdLine` rendering (blocked on license) |
+
+### Skipped test files (not needed):
+
+| Planned | Reason |
 |---|---|
-| `test_redshift_validator.py` | Redshift node/stage validation |
-| `test_redshift_auditor.py` | Redshift audit report generation |
-| `test_redshift_script_writer.py` | Render script content verification |
-| `test_redshift_info_writer.py` | Info file format |
-| `test_redshift_manifest.py` | Manifest content |
-| `test_redshift_converter.py` | Texture conversion (if implemented) |
-
-### Modified test files:
-
-| File | Change |
-|---|---|
-| `test_auditor.py` | Verify parameterized warnings |
-| `test_render_script_writer.py` | No changes (Karma-specific) |
+| `test_redshift_auditor.py` | `redshift_auditor.py` was skipped — reuse `auditor.py` |
+| `test_redshift_converter.py` | `redshift_converter.py` deferred to v2 |
 
 ---
 
-## Phase 5 — Integration & Orchestration
+## Phase 5 — Integration & Orchestration ✅ DONE
 
 ### 5.1 Orchestration writer compatibility
 
@@ -479,12 +487,11 @@ pure USD — no changes needed.
    `REDSHIFT_ABORTONLICENSEFAIL=1`, echo the license server address, and
    verify connectivity before starting the render.
 
-6. **UsdPreviewSurface materials not supported** — USDZ files from external
-   sources (Sketchfab, Apple AR) use `UsdPreviewSurface` shaders. Redshift
-   cannot render these natively — it needs Redshift-specific materials.
-   **Mitigation:** The verify step should warn if `UsdPreviewSurface` shaders
-   are detected. For LOP workflows this is rare (users build Redshift
-   materials in Solaris), but worth flagging.
+6. **UsdPreviewSurface materials** — **UPDATED:** `redshiftUsdCmdLine` added
+   UsdPreviewSurface support in Redshift 2025.3 (Feb 2025). These materials
+   now render but lack Redshift-specific features (advanced shading, AOV
+   output). The validator warns about them with a softened message.
+   **Status:** Implemented in `redshift_validator.py`.
 
 7. **`RSProceduralUSD.so` manual install** — **CONFIRMED:** This issue is
    specific to the Redshift **Hydra delegate** (`HdRedshiftRendererPlugin`),
@@ -529,7 +536,29 @@ pure USD — no changes needed.
     **Mitigation:** Add `mkdir -p ../Output` in the render script before
     calling the renderer.
 
-13. **`redshiftTextureProcessor` flags** — Syntax:
+13. **UDIM textures inside USDZ DO NOT WORK** — OpenUSD bug #1558. The
+    `_ResolveAssetAttribute` function does not handle USDZ reference syntax
+    when resolving UDIM patterns. Renderers receive unresolved paths and
+    textures render black.
+    **Mitigation:** Use loose textures alongside the wrapper `.usda` instead
+    of bundling UDIM textures into USDZ. The existing `extract_udim_for_usdz`
+    function in `converter.py` handles this for the Karma packager and is
+    reused by the Redshift packager.
+
+14. **`libtbb.so.2` missing on Ubuntu 24.04** — `redshiftUsdCmdLine` links
+    against TBB 2.x (`libtbb.so.2`) but Ubuntu 24.04 ships TBB 12.x
+    (`libtbb.so.12`). These are ABI-incompatible (`tbb::task` was removed in
+    TBB 12). Symlinks don't work.
+    **Mitigation:** Install `libtbb2` from an older Ubuntu package, or wait
+    for a Redshift update that links against the newer TBB.
+
+15. **GPU concurrency** — Redshift does NOT support multiple processes
+    rendering on the same GPU simultaneously. On multi-GPU farm nodes, each
+    render process must use a different GPU via `-device N`.
+    **Mitigation:** Document in HDA help. Farm managers (Deadline, Tractor)
+    should assign GPUs per task.
+
+16. **`redshiftTextureProcessor` flags** — Syntax:
     `redshiftTextureProcessor <inputfile> [-l|-s|-cs "COLORSPACE"]`.
     `-l` = force linear (normals, displacement), `-s` = force sRGB (diffuse).
     Supports wildcards (`*.jpg`). No output directory flag — always writes
@@ -542,47 +571,92 @@ pure USD — no changes needed.
 ## Implementation Order
 
 ```
-Phase 0  (prep)       ~1 day    platform_utils, output_injector, auditor
-Phase 1  (modules)    ~3 days   validator, auditor, script_writer, info, manifest
-Phase 2  (HDA code)   ~2 days   PythonModule, OnCreated, buttons
-Phase 3  (HDA def)    ~1 day    .hdalc file, parameters, wiring
-Phase 4  (tests)      ~2 days   unit tests for all new modules
-Phase 5  (integrate)  ~1 day    verify orchestration, dependency resolver, e2e
+Phase 0  (prep)       DONE  2026-03-16  platform_utils extended
+Phase 1  (modules)    DONE  2026-03-16  validator, script_writer, info, manifest
+Phase 2  (HDA code)   DONE  2026-03-16  PythonModule, OnCreated, buttons
+Phase 3  (HDA def)    DONE  2026-03-16  .hdalc created via headless hython
+Phase 4  (tests)      DONE  2026-03-16  56 new tests (254 total CI)
+Phase 5  (integrate)  DONE  2026-03-16  orchestration/deps confirmed compatible
+Phase 6  (render)     BLOCKED          license + libtbb.so.2 issues
 ```
 
-Total: ~10 working days for a complete, tested Redshift LOP packager.
+Completed in 1 day. Estimated 10 days was conservative.
 
 ---
 
-## Files Created (New)
+## Phase 6 — Render Testing ⏳ BLOCKED
+
+Test infrastructure is ready (`test_redshift_render.py`) but blocked on:
+
+1. **Redshift license:** Ghost trial activation stuck at Maxon. Support
+   contacted (2026-03-16). Once resolved, activate via:
+   ```bash
+   cd /opt/maxon/maxon_app/bin
+   ./mx1 license assign "net.maxon.license.app.bundle_maxonone~trial"
+   ```
+
+2. **`libtbb.so.2`:** `redshiftUsdCmdLine` links against TBB 2.x but the
+   system has TBB 12.x. Options:
+   - Install `libtbb2` from an older Ubuntu package
+   - Wait for Redshift update that links against TBB 12
+   - Symlink won't work (ABI incompatible — `tbb::task` removed in TBB 12)
+
+### Render tests ready to run:
+
+- `test_list_settings` — verify `-list-settings` flag finds RenderSettings
+- `test_list_cameras` — verify `-list-cameras` flag finds camera
+- `test_single_frame_render` — render one frame, verify output file
+- `test_generated_script_syntax` — bash syntax check on generated scripts
+
+### Test scene:
+
+`tests/test_scenes/redshift_test.usda` — sphere + dome light + camera +
+RenderSettings + RenderProduct at 320x240.
+
+---
+
+## Files Created
 
 ```
-src/redshift_validator.py
-src/redshift_auditor.py
-src/redshift_script_writer.py
-src/redshift_info_writer.py
-src/redshift_manifest.py
-src/redshift_converter.py          # optional, v2
-hda_scripts_redshift/PythonModule.py
-hda_scripts_redshift/OnCreated.py
-hda_scripts_redshift/btn_verify.py
-hda_scripts_redshift/btn_package.py
-hda/redshift_usd_packager.hdalc
-tests/test_redshift_validator.py
-tests/test_redshift_auditor.py
-tests/test_redshift_script_writer.py
-tests/test_redshift_info_writer.py
-tests/test_redshift_manifest.py
+src/redshift_validator.py           # redshift: attr detection, UsdPreviewSurface warnings
+src/redshift_script_writer.py       # redshiftUsdCmdLine render script
+src/redshift_info_writer.py         # machine-readable render_info.txt
+src/redshift_manifest.py            # human-readable manifest
+hda_scripts_redshift/PythonModule.py # verify + package callbacks
+hda_scripts_redshift/OnCreated.py    # node color + network box
+hda_scripts_redshift/btn_verify.py   # one-liner callback
+hda_scripts_redshift/btn_package.py  # one-liner callback
+hda/redshift_usd_packager.hdalc     # LOP HDA definition
+scripts/create_redshift_hda.py       # reproducible HDA creation script
+tests/test_redshift_validator.py     # 12 tests
+tests/test_redshift_script_writer.py # 20 tests
+tests/test_redshift_info_writer.py   # 7 tests
+tests/test_redshift_manifest.py      # 12 tests
+tests/test_redshift_e2e.py           # e2e pipeline test (houdini)
+tests/test_redshift_render.py        # render integration test (houdini + RS license)
+tests/test_scenes/redshift_test.usda # test USD scene
+tests/test_scenes/redshift_test_scene.hip # test HIP file
 ```
 
-## Files Modified (Existing)
+## Files NOT Created (planned but skipped)
 
 ```
-src/platform_utils.py              # add detect_redshift(), redshift_env_block()
-src/auditor.py                     # parameterize warning messages
+src/redshift_auditor.py             # not needed — reuse auditor.py
+src/redshift_converter.py           # deferred to v2
+tests/test_redshift_auditor.py      # not needed
+tests/test_redshift_converter.py    # deferred to v2
 ```
 
-## Files Unchanged
+## Files Modified
+
+```
+src/platform_utils.py              # added detect_redshift(), get_redshift_binary(), redshift_env_block()
+tests/test_platform_utils.py       # added 5 tests for Redshift functions
+CLAUDE.md                          # documented Redshift architecture + API gotchas
+README.md                          # added Redshift + Mantra sections
+```
+
+## Files Unchanged (confirmed compatible)
 
 ```
 src/output_injector.py             # <F4> token works with redshiftUsdCmdLine
@@ -590,6 +664,7 @@ src/packager.py                    # pure USD, renderer-agnostic
 src/wrapper_writer.py              # pure USD
 src/classifier.py                  # pure USD
 src/gatherer.py                    # pure USD
+src/auditor.py                     # generic USD audit, reused as-is
 src/validator.py                   # shared validations
 src/dependency_resolver.py         # SOP/LOP graph traversal
 src/orchestration_writer.py        # run_all.sh sequencing
