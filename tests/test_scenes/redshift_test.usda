@@ -1,0 +1,293 @@
+#usda 1.0
+(
+    doc = """Generated from Composed Stage of root layer 
+"""
+    framesPerSecond = 24
+    metersPerUnit = 1
+    timeCodesPerSecond = 24
+)
+
+def HoudiniLayerInfo "HoudiniLayerInfo" (
+    customData = {
+        int HoudiniCreatorNode = 10
+        int[] HoudiniEditorNodes = [10, 11, 12, 13, 14]
+        string HoudiniSaveControl = "Placeholder"
+    }
+)
+{
+}
+
+def Sphere "test_sphere" (
+    customData = {
+        int[] HoudiniPrimEditorNodes = [10]
+    }
+)
+{
+    float3[] extent = [(-1, -1, -1), (1, 1, 1)]
+    double radius = 1 (
+        customData = {
+            int[] HoudiniPrimEditorNodes = [10]
+        }
+    )
+    matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1) ) (
+        customData = {
+            int[] HoudiniPrimEditorNodes = [10]
+        }
+    )
+    uniform token[] xformOpOrder = ["xformOp:transform"]
+}
+
+def Xform "lights"
+{
+    def DomeLight_1 "dome" (
+        apiSchemas = ["HoudiniViewportGuideAPI"]
+        customData = {
+            int[] HoudiniPrimEditorNodes = [11]
+        }
+    )
+    {
+        custom rel filters
+        float houdini:guidescale = 1 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [11]
+            }
+        )
+        uniform bool houdini:inviewermenu = 0 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [11]
+            }
+        )
+        color3f inputs:color = (1, 1, 1) (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [11]
+            }
+        )
+        float inputs:diffuse = 1 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [11]
+            }
+        )
+        bool inputs:enableColorTemperature = 0 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [11]
+            }
+        )
+        float inputs:exposure = 0 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [11]
+            }
+        )
+        float inputs:intensity = 1 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [11]
+            }
+        )
+        bool inputs:normalize = 0 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [11]
+            }
+        )
+        float inputs:specular = 1 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [11]
+            }
+        )
+        asset inputs:texture:file = @@ (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [11]
+            }
+        )
+        token inputs:texture:format = "automatic" (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [11]
+            }
+        )
+        rel light:filters
+        uniform token poleAxis = "scene" (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [11]
+            }
+        )
+        rel portals
+        matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1) ) (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [11]
+            }
+        )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+    }
+}
+
+def Xform "cameras"
+{
+    def Camera "test_cam" (
+        apiSchemas = ["HoudiniViewportGuideAPI", "HoudiniCameraPlateAPI"]
+        customData = {
+            int[] HoudiniPrimEditorNodes = [12]
+        }
+    )
+    {
+        float2 clippingRange = (1, 1000000) (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        float exposure = 0 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        float focalLength = 0.5 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        float focusDistance = 5 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        float fStop = 0 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        float horizontalAperture = 0.20955 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        float horizontalApertureOffset = 0 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        asset houdini:backgroundimage = @@ (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        asset houdini:foregroundimage = @@ (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        float houdini:guidescale = 1 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        uniform bool houdini:inviewermenu = 1 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        token projection = "perspective" (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        double shutter:close = 0.25 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        double shutter:open = -0.25 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        float verticalAperture = 0.11787187 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        float verticalApertureOffset = 0 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1) ) (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [12]
+            }
+        )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+    }
+}
+
+def Scope "Render"
+{
+    def RenderSettings "rendersettings" (
+        customData = {
+            int[] HoudiniPrimEditorNodes = [13]
+        }
+    )
+    {
+        uniform token aspectRatioConformPolicy = "expandAperture" (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [13]
+            }
+        )
+        rel camera = </cameras/camera1>
+        uniform float4 dataWindowNDC = (0, 0, 1, 1) (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [13]
+            }
+        )
+        uniform bool disableDepthOfField = 0 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [13]
+            }
+        )
+        uniform bool disableMotionBlur = 0 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [13]
+            }
+        )
+        uniform token[] includedPurposes = ["default"] (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [13]
+            }
+        )
+        uniform token[] materialBindingPurposes = ["full", "allPurpose"] (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [13]
+            }
+        )
+        uniform float pixelAspectRatio = 1 (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [13]
+            }
+        )
+        rel products
+        uniform int2 resolution = (2048, 1080) (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [13]
+            }
+        )
+    }
+
+    def Scope "Products"
+    {
+        def RenderProduct "product" (
+            customData = {
+                int[] HoudiniPrimEditorNodes = [14]
+            }
+        )
+        {
+            rel orderedVars
+            token productName = "" (
+                customData = {
+                    int[] HoudiniPrimEditorNodes = [14]
+                }
+            )
+            uniform token productType = "raster" (
+                customData = {
+                    int[] HoudiniPrimEditorNodes = [14]
+                }
+            )
+        }
+    }
+}
+
