@@ -28,7 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/kleer001/houdini_remote_render/main
 irm https://raw.githubusercontent.com/kleer001/houdini_remote_render/main/scripts/bootstrap.ps1 | iex
 ```
 
-Restart Houdini. Three HDAs appear in the Tab menu.
+Restart Houdini. Four HDAs appear in the Tab menu.
 
 ## HDAs
 
@@ -62,6 +62,36 @@ bash Scripts/run_cache.sh
 ```
 
 The portable `.hip` has rewritten cache paths so output lands in the package's `Cache/` directory. The generated script runs `hython` headlessly — no GUI needed.
+
+### Redshift USD Packager (LOP)
+
+Packages a Solaris/LOP stage for remote rendering with standalone `redshiftUsdCmdLine`. Same workflow as the Karma packager — no Houdini license required on the render machine.
+
+1. Drop **Redshift USD Packager** into your LOP network (after your Redshift RenderSettings)
+2. Set **Shot Name**, configure GPU/texture settings in the **Redshift** tab, click **Verify**, click **Package**
+3. Copy the output folder to your render machine and run:
+
+```bash
+cd SHOT_NAME_P1T1_v001
+bash Scripts/run_render.sh
+```
+
+The packager validates Redshift render settings (`redshift:` attributes), warns about UsdPreviewSurface materials, and generates a `redshiftUsdCmdLine` script with GPU device selection, texture cache, OCIO config, and all confirmed CLI flags.
+
+### Mantra Render Packager (ROP)
+
+Packages a Mantra ROP into self-contained IFD files with embedded geometry and shaders for license-free remote rendering via `mantra` standalone.
+
+1. Drop **Remote Mantra Render** into your ROP network
+2. Set **Shot Name**, click **Verify**, click **Package**
+3. Copy the output folder to your render machine and run:
+
+```bash
+cd SHOT_NAME_P1T1_v001
+bash Scripts/run_render.sh
+```
+
+IFDs embed geometry and VEX shaders, so the render machine only needs Houdini's free render tokens — no interactive license.
 
 ### Combined Cache + Render
 
@@ -164,6 +194,29 @@ Scripts/
   run_cache_001_*.sh — Per-cache hython scripts
   run_render.sh      — husk launcher
 {shot}_manifest.txt  — Packaging report with dependency chain
+```
+
+**Redshift USD Packager:**
+```
+Output/              — Rendered frames land here
+Textures/            — Converted textures and UDIM tiles
+Cache/               — External caches (VDB, bgeo.sc, Alembic)
+Scenes/              — USDZ archive + .usda wrapper
+Scripts/             — run_render.sh (redshiftUsdCmdLine launcher)
+render_info.txt      — Frame range, GPU device, USD filename
+{shot}_manifest.txt  — Human-readable packaging report
+{hip_filename}.zip   — HIP backup
+```
+
+**Mantra Render Packager:**
+```
+Output/              — Rendered frames land here
+IFDs/                — Generated IFD files (embedded geometry + shaders)
+Textures/            — Gathered textures
+Scripts/             — run_render.sh (mantra standalone launcher)
+render_info.txt      — Frame range, IFD pattern, engine
+{shot}_manifest.txt  — Human-readable packaging report
+{shot}_original.hip.zip — HIP backup
 ```
 
 **Remote File Cache** (standalone):
@@ -272,7 +325,7 @@ The shipped HDAs use the `.hdalc` (Indie) extension. If you're on a different Ho
 cd /path/to/houdini_remote_render/hda
 
 # Commercial / FX  (.hdalc → .hda)
-for hda in karma_usd_packager remote_file_cache remote_mantra_render; do
+for hda in karma_usd_packager remote_file_cache remote_mantra_render redshift_usd_packager; do
     hotl -l ${hda}.hdalc temp_dir && hotl -c temp_dir ${hda}.hda && rm -rf temp_dir
 done
 
@@ -300,15 +353,15 @@ If `hotl` is not on your PATH, source the Houdini environment first: `cd $HFS &&
 <summary><strong>Testing</strong></summary>
 
 ```bash
-# CI tests (no Houdini required) — 172 tests
+# CI tests (no Houdini required) — 254 tests
 pytest -m "not houdini"
 
-# Houdini integration tests (requires $HFS via hython subprocess) — 34 tests
-export HFS=/opt/hfs21.0.631
+# Houdini integration tests (requires $HFS via hython subprocess)
+export HFS=/opt/hfs21.0.596
 pytest -m "houdini" -v
 
 # All tests
-export HFS=/opt/hfs21.0.631
+export HFS=/opt/hfs21.0.596
 pytest
 ```
 

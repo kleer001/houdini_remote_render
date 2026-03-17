@@ -115,6 +115,8 @@ def on_verify_clicked(kwargs):
         # [1/5] Shot name
         ok, msg = validate_shot_name(shot_name)
         if not ok:
+            log.append(f"  [1/5] Shot name ........... FAIL: {msg}")
+            node.parm("log_output").set("\n".join(log))
             if _has_ui():
                 hou.ui.displayMessage(msg, severity=hou.severityType.Error)
             return
@@ -123,6 +125,8 @@ def on_verify_clicked(kwargs):
         # [2/5] HIP file
         ok, msg = validate_hip_saved()
         if not ok:
+            log.append(f"  [2/5] HIP file ............ FAIL: {msg}")
+            node.parm("log_output").set("\n".join(log))
             if _has_ui():
                 hou.ui.displayMessage(msg, severity=hou.severityType.Error)
             return
@@ -494,27 +498,21 @@ def on_package_clicked(kwargs):
         skip_postfx = node.parm("skip_postfx").eval()
         restart_delegate = node.parm("restart_delegate").eval()
 
-        # Read resolution from stage
+        # Single-pass stage traversal for resolution, camera, AOV count
         width, height = 1920, 1080
+        camera = ""
+        aov_count = 0
         for _prim in stage.Traverse():
-            if _prim.GetTypeName() == "RenderSettings":
+            _type = _prim.GetTypeName()
+            if _type == "RenderSettings" and width == 1920:
                 _res_attr = _prim.GetAttribute("resolution")
                 if _res_attr:
                     _res = _res_attr.Get()
                     width, height = int(_res[0]), int(_res[1])
-                break
-
-        # Read camera from stage
-        camera = ""
-        for _prim in stage.Traverse():
-            if _prim.GetTypeName() == "Camera":
+            elif _type == "Camera" and not camera:
                 camera = str(_prim.GetPath())
-                break
-
-        # Count AOVs
-        aov_count = sum(
-            1 for p in stage.Traverse() if p.GetTypeName() == "RenderVar"
-        )
+            elif _type == "RenderVar":
+                aov_count += 1
 
         render_script_path = os.path.join(shot_dir, "Scripts", "run_render.sh")
         write_redshift_script(
@@ -661,17 +659,30 @@ def on_get_from_stage_clicked(kwargs):
         )
 
 
-# Re-export _bake_houdini_paths from Karma PythonModule for shared use.
-# In the HDA context, this is called via hou.phm() which resolves to
-# THIS module when the Redshift HDA is active. We import it lazily
-# to avoid circular dependencies.
 def _bake_houdini_paths(flat_usda_path, bake_dir, frame_range=None):
     """Delegate to the Karma packager's bake implementation.
 
     The bake logic is Houdini-generic (resolves op: and opdef: paths)
-    and is shared between Karma and Redshift packagers.
+    and is shared between Karma and Redshift packagers. Loaded from the
+    Karma HDA's PythonModule file on disk via importlib.util.
     """
-    # Import from the Karma PythonModule — same repo, same sys.path
-    import importlib
-    karma_pm = importlib.import_module("hda_scripts.PythonModule")
+    import importlib.util
+
+    # _ensure_src_path has already added repo_root to sys.path.
+    # The Karma PythonModule lives at repo_root/hda_scripts/PythonModule.py.
+    karma_pm_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "hda_scripts", "PythonModule.py",
+    )
+    # In the HDA context, __file__ may not be set. Fall back to sys.path[0].
+    if not os.path.isfile(karma_pm_path):
+        for p in sys.path:
+            candidate = os.path.join(p, "hda_scripts", "PythonModule.py")
+            if os.path.isfile(candidate):
+                karma_pm_path = candidate
+                break
+
+    spec = importlib.util.spec_from_file_location("karma_pm", karma_pm_path)
+    karma_pm = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(karma_pm)
     return karma_pm._bake_houdini_paths(flat_usda_path, bake_dir, frame_range)

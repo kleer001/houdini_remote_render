@@ -34,10 +34,10 @@ def validate_redshift_stage(stage) -> tuple[bool, str]:
 
 
 def validate_redshift_materials(stage) -> list[str]:
-    """Return warnings for non-Redshift materials in the stage.
+    """Return warnings for UsdPreviewSurface materials in the stage.
 
-    UsdPreviewSurface shaders are not renderable by Redshift.
-    Redshift requires its own material types.
+    UsdPreviewSurface shaders are renderable by Redshift (since RS 2025.3)
+    but lack Redshift-specific features like AOV output and advanced shading.
     """
     warnings = []
     preview_surface_mats = []
