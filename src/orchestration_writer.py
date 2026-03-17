@@ -3,7 +3,7 @@
 import os
 from datetime import datetime
 
-from src.platform_utils import detect_hfs, hfs_source_block, make_executable
+from src.platform_utils import detect_hfs, hfs_source_block, hfs_bat_block, make_executable
 
 
 def write_orchestration_script(
@@ -68,3 +68,44 @@ echo "=== All {total} steps complete ==="
         f.write(script)
 
     make_executable(output_path)
+
+    # Windows companion
+    bat_path = output_path.rsplit(".sh", 1)[0] + ".bat"
+    bat_steps: list[str] = []
+    for i, (label, filename) in enumerate(cache_scripts, 1):
+        bat_filename = filename.rsplit(".sh", 1)[0] + ".bat"
+        bat_steps.append(f"""\
+rem Step {i}/{total}: Cache — {label}
+echo --- [{i}/{total}] Cache: {label} ---
+call "Scripts\\{bat_filename}"
+if errorlevel 1 exit /b 1
+echo --- [{i}/{total}] complete ---
+echo.""")
+
+    render_bat = render_script_filename.rsplit(".sh", 1)[0] + ".bat"
+    bat_steps.append(f"""\
+rem Step {total}/{total}: Render
+echo --- [{total}/{total}] Render ---
+call "Scripts\\{render_bat}"
+if errorlevel 1 exit /b 1
+echo --- [{total}/{total}] complete ---
+echo.""")
+
+    bat_steps_block = "\n".join(bat_steps)
+    bat = f"""@echo off
+rem Orchestrated Build — cache + render
+rem Shot: {shot_name}
+rem Generated: {timestamp}
+rem Steps: {len(cache_scripts)} cache job(s) + 1 render
+
+cd /d "%~dp0.."
+{hfs_bat_block(hfs_path)}
+echo === Orchestrated Build: {shot_name} ===
+echo Steps: {len(cache_scripts)} cache(s) + 1 render
+echo.
+
+{bat_steps_block}
+echo === All {total} steps complete ===
+"""
+    with open(bat_path, "w", newline="\r\n") as f:
+        f.write(bat)

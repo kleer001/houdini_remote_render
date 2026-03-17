@@ -134,6 +134,27 @@ fi
 """
 
 
+def hfs_bat_block(hfs_path: str | None) -> str:
+    """Return a batch snippet that sets up the Houdini environment on Windows.
+
+    Calls ``houdini_setup.bat`` (the Windows equivalent of
+    ``houdini_setup_bash``).
+    """
+    if hfs_path:
+        return f"""\
+rem Source Houdini environment
+if not defined HFS set "HFS={hfs_path}"
+if exist "%HFS%\\houdini_setup.bat" (
+    pushd "%HFS%"
+    call houdini_setup.bat
+    popd
+)
+"""
+    return """\
+rem HFS not known at packaging time — hython/husk must be on PATH
+"""
+
+
 def detect_redshift() -> str | None:
     """Return ``$REDSHIFT_COREDATAPATH`` from environment, or None.
 
@@ -196,4 +217,20 @@ fi
     return """
 # REDSHIFT_COREDATAPATH not known at packaging time —
 # redshiftUsdCmdLine must already be on PATH
+"""
+
+
+def redshift_bat_block(rs_path: str | None) -> str:
+    """Return a batch snippet that sets up the Redshift environment on Windows."""
+    if rs_path:
+        return f"""\
+rem Redshift environment
+if not defined REDSHIFT_COREDATAPATH set "REDSHIFT_COREDATAPATH={rs_path}"
+set "PATH=%REDSHIFT_COREDATAPATH%\\bin;%PATH%"
+
+if defined redshift_LICENSE echo License server: %redshift_LICENSE%
+"""
+    return """\
+rem REDSHIFT_COREDATAPATH not known at packaging time —
+rem redshiftUsdCmdLine must already be on PATH
 """

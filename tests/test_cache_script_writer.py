@@ -108,3 +108,36 @@ class TestWriteCacheScript:
                 content = f.read()
 
             assert "deleteAllKeyframes" in content
+
+
+class TestWriteCacheBat:
+    def test_bat_created(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_cache.sh")
+            write_cache_script(
+                output_path=path,
+                shot_name="test",
+                hip_filename="test.hip",
+                cache_node_path="/obj/geo1/fc1",
+                frame_start=1,
+                frame_end=10,
+            )
+            bat = os.path.join(tmpdir, "Scripts", "run_cache.bat")
+            assert os.path.isfile(bat)
+
+    def test_bat_contains_hython(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_cache.sh")
+            write_cache_script(
+                output_path=path,
+                shot_name="test",
+                hip_filename="test.hip",
+                cache_node_path="/obj/geo1/fc1",
+                frame_start=1,
+                frame_end=10,
+            )
+            bat = os.path.join(tmpdir, "Scripts", "run_cache.bat")
+            with open(bat) as f:
+                content = f.read()
+            assert "hython" in content
+            assert "@echo off" in content

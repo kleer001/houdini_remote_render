@@ -7,7 +7,9 @@ or husk required on the render machine.
 import os
 from datetime import datetime
 
-from src.platform_utils import detect_redshift, redshift_env_block, make_executable
+from src.platform_utils import (
+    detect_redshift, redshift_env_block, redshift_bat_block, make_executable,
+)
 
 
 def write_redshift_script(
@@ -113,3 +115,29 @@ echo "Render complete."
         f.write(script)
 
     make_executable(output_path)
+
+    # Windows companion
+    bat_path = output_path.rsplit(".sh", 1)[0] + ".bat"
+    bat_flags = flags_str.replace(" \\\n    ", " ")
+    bat = f"""@echo off
+rem Remote Redshift Render — redshiftUsdCmdLine launcher
+rem Shot: {shot_name}
+rem Generated: {timestamp}
+
+cd /d "%~dp0.."
+{redshift_bat_block(redshift_path)}
+echo Starting Redshift render: {shot_name}
+echo Frames: {frame_start}-{frame_end} (inc {frame_inc})
+echo GPU device: {gpu_device}
+echo.
+
+cd Scenes
+if not exist "..\\Output" mkdir "..\\Output"
+
+redshiftUsdCmdLine "{wrapper_filename}" {bat_flags}
+
+echo.
+echo Render complete.
+"""
+    with open(bat_path, "w", newline="\r\n") as f:
+        f.write(bat)

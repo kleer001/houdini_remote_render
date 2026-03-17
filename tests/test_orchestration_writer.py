@@ -130,3 +130,33 @@ class TestWriteOrchestrationScript:
             with open(path) as f:
                 content = f.read()
             assert "my_explosion" in content
+
+
+class TestWriteOrchestrationBat:
+    def test_bat_created(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_all.sh")
+            write_orchestration_script(
+                output_path=path,
+                shot_name="test",
+                cache_scripts=[("sim", "run_cache_001_sim.sh")],
+            )
+            bat = os.path.join(tmpdir, "Scripts", "run_all.bat")
+            assert os.path.isfile(bat)
+
+    def test_bat_calls_bat_scripts(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_all.sh")
+            write_orchestration_script(
+                output_path=path,
+                shot_name="test",
+                cache_scripts=[("sim", "run_cache_001_sim.sh")],
+                render_script_filename="run_render.sh",
+            )
+            bat = os.path.join(tmpdir, "Scripts", "run_all.bat")
+            with open(bat) as f:
+                content = f.read()
+            assert "run_cache_001_sim.bat" in content
+            assert "run_render.bat" in content
+            assert "@echo off" in content
+            assert "errorlevel" in content

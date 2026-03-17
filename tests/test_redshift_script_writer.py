@@ -348,3 +348,54 @@ class TestWriteRedshiftScript:
                 content = f.read()
 
             assert "-V " not in content
+
+
+class TestWriteRedshiftBat:
+    def test_bat_created_alongside_sh(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_render.sh")
+            write_redshift_script(
+                output_path=path,
+                shot_name="test",
+                wrapper_filename="test.usda",
+                frame_start=1,
+                frame_end=10,
+            )
+            bat = os.path.join(tmpdir, "Scripts", "run_render.bat")
+            assert os.path.isfile(bat)
+
+    def test_bat_uses_crlf(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_render.sh")
+            write_redshift_script(
+                output_path=path,
+                shot_name="test",
+                wrapper_filename="test.usda",
+                frame_start=1,
+                frame_end=10,
+            )
+            bat = os.path.join(tmpdir, "Scripts", "run_render.bat")
+            with open(bat, "rb") as f:
+                raw = f.read()
+            assert b"\r\n" in raw
+
+    def test_bat_contains_redshift_command(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_render.sh")
+            write_redshift_script(
+                output_path=path,
+                shot_name="test",
+                wrapper_filename="test.usda",
+                frame_start=1001,
+                frame_end=1100,
+                redshift_path="C:\\ProgramData\\redshift",
+            )
+            bat = os.path.join(tmpdir, "Scripts", "run_render.bat")
+            with open(bat) as f:
+                content = f.read()
+            assert "redshiftUsdCmdLine" in content
+            assert "REDSHIFT_COREDATAPATH" in content
+            assert "-f 1001" in content
+            assert "-n 100" in content
+            assert "mkdir" in content
+            assert "@echo off" in content

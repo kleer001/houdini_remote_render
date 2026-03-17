@@ -333,3 +333,51 @@ class TestWriteRenderScript:
                 content = f.read()
             assert "--restart-delegate 0" in content
             assert "--restart-delegate 1" not in content
+
+
+class TestWriteRenderBat:
+    def test_bat_created(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_render.sh")
+            write_render_script(
+                output_path=path,
+                shot_name="test",
+                wrapper_filename="test.usda",
+                frame_start=1,
+                frame_end=10,
+            )
+            bat = os.path.join(tmpdir, "Scripts", "run_render.bat")
+            assert os.path.isfile(bat)
+
+    def test_bat_contains_husk(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_render.sh")
+            write_render_script(
+                output_path=path,
+                shot_name="test",
+                wrapper_filename="test.usda",
+                frame_start=1001,
+                frame_end=1100,
+                hfs_path="C:\\Program Files\\Houdini",
+            )
+            bat = os.path.join(tmpdir, "Scripts", "run_render.bat")
+            with open(bat) as f:
+                content = f.read()
+            assert "husk" in content
+            assert "houdini_setup.bat" in content
+            assert "@echo off" in content
+
+    def test_bat_uses_crlf(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_render.sh")
+            write_render_script(
+                output_path=path,
+                shot_name="test",
+                wrapper_filename="test.usda",
+                frame_start=1,
+                frame_end=10,
+            )
+            bat = os.path.join(tmpdir, "Scripts", "run_render.bat")
+            with open(bat, "rb") as f:
+                raw = f.read()
+            assert b"\r\n" in raw

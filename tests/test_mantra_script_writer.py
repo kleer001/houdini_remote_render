@@ -152,3 +152,36 @@ class TestWriteMantraScript:
                 content = f.read()
 
             assert "shot.%04d.ifd" in content
+
+
+class TestWriteMantraBat:
+    def test_bat_created(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_render.sh")
+            write_mantra_script(
+                output_path=path,
+                shot_name="test",
+                ifd_pattern="test.%04d.ifd",
+                frame_start=1,
+                frame_end=10,
+            )
+            bat = os.path.join(tmpdir, "Scripts", "run_render.bat")
+            assert os.path.isfile(bat)
+
+    def test_bat_contains_mantra(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "Scripts", "run_render.sh")
+            write_mantra_script(
+                output_path=path,
+                shot_name="test",
+                ifd_pattern="test.%04d.ifd",
+                frame_start=1001,
+                frame_end=1200,
+                hfs_path="C:\\Program Files\\Houdini",
+            )
+            bat = os.path.join(tmpdir, "Scripts", "run_render.bat")
+            with open(bat) as f:
+                content = f.read()
+            assert "mantra" in content
+            assert "for /L" in content
+            assert "@echo off" in content

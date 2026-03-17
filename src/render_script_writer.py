@@ -3,7 +3,7 @@
 import os
 from datetime import datetime
 
-from src.platform_utils import detect_hfs, hfs_source_block, make_executable
+from src.platform_utils import detect_hfs, hfs_source_block, hfs_bat_block, make_executable
 
 
 def write_render_script(
@@ -119,3 +119,28 @@ echo "Render complete."
         f.write(script)
 
     make_executable(output_path)
+
+    # Windows companion
+    bat_path = output_path.rsplit(".sh", 1)[0] + ".bat"
+    bat_flags = flags_str.replace(" \\\n    ", " ")
+    bat = f"""@echo off
+rem Remote Karma Render — husk launcher
+rem Shot: {shot_name}
+rem Generated: {timestamp}
+
+cd /d "%~dp0.."
+{hfs_bat_block(hfs_path)}
+echo Starting render: {shot_name}
+echo Frames: {frame_start}-{frame_end}
+echo Renderer: {renderer}
+echo.
+
+cd Scenes
+
+husk {bat_flags} "{wrapper_filename}"
+
+echo.
+echo Render complete.
+"""
+    with open(bat_path, "w", newline="\r\n") as f:
+        f.write(bat)
