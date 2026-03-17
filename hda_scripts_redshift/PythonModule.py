@@ -259,6 +259,31 @@ def on_verify_clicked(kwargs):
             log.append(f"  [5/5] Stage audit ......... FAIL (no input)")
             has_failure = True
 
+        # Check downstream render ROP for "Current Frame" pitfall
+        for output in node.outputs():
+            rop_type = output.type().name()
+            if rop_type in ("usdrender_rop", "Redshift_IPR", "karma"):
+                trange_parm = output.parm("trange")
+                if trange_parm and trange_parm.eval() == 0:
+                    warnings.append(
+                        f"Downstream ROP '{output.name()}' is set to "
+                        f"'Render Current Frame'. It will only render "
+                        f"whichever frame is active — not a sequence. "
+                        f"Set it to 'Render Frame Range' if you want "
+                        f"an animation."
+                    )
+                break
+
+        # Check if packager's own frame range is a single frame
+        frame_start_val = node.parm("frame_start").eval()
+        frame_end_val = node.parm("frame_end").eval()
+        if frame_start_val == frame_end_val:
+            warnings.append(
+                f"Frame range is a single frame ({int(frame_start_val)}). "
+                f"If you intended to render a sequence, update Frame "
+                f"Start/End in the Packaging tab."
+            )
+
         # [DEPS] Upstream dependency scan
         try:
             from src.dependency_resolver import (
