@@ -165,45 +165,96 @@ def on_verify_clicked(kwargs):
             rs_ok, rs_msg = validate_redshift_stage(stage)
             rs_mat_warnings = validate_redshift_materials(stage)
 
-            audit_issues = []
-            if not rs_ok:
-                audit_issues.append(rs_msg)
-            if not report.has_camera:
-                audit_issues.append("no camera found")
+            # --- Blocking checks (FAIL) ---
+            # These are things the artist must fix before packaging.
+            # Each message tells them exactly what LOP to add.
+            audit_failures = []
+
+            if not report.has_render_settings:
+                audit_failures.append(
+                    "No RenderSettings prim found. Add a Render Settings "
+                    "LOP (or Redshift RenderSettings LOP) to your network."
+                )
+
             if not report.has_render_products:
-                audit_issues.append("no render products found")
+                audit_failures.append(
+                    "No RenderProduct prim found. Add a Render Product "
+                    "LOP to define where rendered images are written. "
+                    "Without this, the renderer produces no output files."
+                )
+
+            if not report.has_camera:
+                audit_failures.append(
+                    "No Camera prim found. Add a Camera LOP or ensure "
+                    "your sublayered USD file contains a camera."
+                )
+
+            if not rs_ok:
+                audit_failures.append(rs_msg)
+
+            # Check products relationship wiring
+            if report.has_render_settings and report.has_render_products:
+                if report.products_missing_vars is not None:
+                    # Reuse the existing check — but also verify
+                    # the products rel itself is wired
+                    from pxr import UsdRender as _UsdRender
+                    for _p in stage.Traverse():
+                        if _p.GetTypeName() == "RenderSettings":
+                            _rs = _UsdRender.Settings(_p)
+                            if not _rs.GetProductsRel().GetTargets():
+                                audit_failures.append(
+                                    "RenderSettings has no 'products' relationship. "
+                                    "Wire your RenderProduct to the RenderSettings — "
+                                    "in Solaris, connect the Render Product LOP's output "
+                                    "to the Render Settings LOP's input."
+                                )
+                            break
+
+            # --- Non-blocking checks (WARN) ---
+            audit_warnings = []
             if not report.has_lights:
-                audit_issues.append(
+                audit_warnings.append(
                     "No lights found — Redshift has no default headlight, "
                     "the render will be black"
                 )
             if report.camera_mismatch:
-                audit_issues.append(report.camera_mismatch)
-            audit_issues.extend(rs_mat_warnings)
+                audit_warnings.append(report.camera_mismatch)
+            audit_warnings.extend(rs_mat_warnings)
 
-            if audit_issues:
+            if audit_failures:
+                log.append(f"  [5/5] Stage audit ......... FAIL")
+                has_failure = True
+            elif audit_warnings:
                 log.append(f"  [5/5] Stage audit ......... WARN")
             else:
                 log.append(f"  [5/5] Stage audit ......... PASS")
 
-            log.append(f"        Redshift settings     {'found' if rs_ok else 'MISSING'}")
-            log.append(f"        Camera                {'found' if report.has_camera else 'MISSING'}")
-            log.append(f"        Render products       {'found' if report.has_render_products else 'MISSING'}")
-            log.append(f"        AOVs (RenderVars)     {'found' if report.has_render_vars else 'MISSING'}")
-            log.append(f"        Lights                {report.light_count}")
-            log.append(f"        Instances             {report.instance_count:,}")
+            log.append(f"        Render settings       {'found' if report.has_render_settings else 'MISSING'}")
+            log.append(f"        Redshift settings      {'found' if rs_ok else 'MISSING'}")
+            log.append(f"        Render products        {'found' if report.has_render_products else 'MISSING'}")
+            log.append(f"        Camera                 {'found' if report.has_camera else 'MISSING'}")
+            log.append(f"        AOVs (RenderVars)      {'found' if report.has_render_vars else 'none'}")
+            log.append(f"        Lights                 {report.light_count}")
+            log.append(f"        Instances              {report.instance_count:,}")
 
             if report.vex_shaders:
-                log.append(f"        VEX shaders           {', '.join(report.vex_shaders)}")
+                log.append(f"        VEX shaders            {', '.join(report.vex_shaders)}")
             if report.resolution_mismatches:
-                log.append(f"        Resolution            MISMATCH")
+                log.append(f"        Resolution             MISMATCH")
 
             # GPU device
             gpu_device = node.parm("gpu_device").evalAsString()
-            log.append(f"        GPU device            {gpu_device}")
+            log.append(f"        GPU device             {gpu_device}")
+
+            # Show failures first, then warnings
+            if audit_failures:
+                log.append("")
+                log.append("  Errors (must fix before packaging):")
+                for f in audit_failures:
+                    log.append(f"    [FAIL] {f}")
 
             warnings.extend(report.warnings)
-            warnings.extend(audit_issues)
+            warnings.extend(audit_warnings)
         else:
             log.append(f"  [5/5] Stage audit ......... FAIL (no input)")
             has_failure = True
@@ -417,13 +468,40 @@ def on_package_clicked(kwargs):
                 )
             return
 
-        # 5. Audit
+        # 5. Audit — block on missing critical prims
         report = audit_stage(stage)
         rs_ok, rs_msg = validate_redshift_stage(stage)
         rs_mat_warnings = validate_redshift_materials(stage)
         all_warnings = list(report.warnings) + rs_mat_warnings
         if hip_warning:
             all_warnings.insert(0, hip_warning)
+
+        # Blocking checks — refuse to package without these
+        blocking = []
+        if not report.has_render_settings:
+            blocking.append(
+                "No RenderSettings prim. Add a Render Settings LOP."
+            )
+        if not report.has_render_products:
+            blocking.append(
+                "No RenderProduct prim. Add a Render Product LOP."
+            )
+        if not report.has_camera:
+            blocking.append(
+                "No Camera prim. Add a Camera LOP."
+            )
+
+        if blocking:
+            msg = "Cannot package — your scene is missing required prims:\n\n"
+            msg += "\n".join(f"  - {b}" for b in blocking)
+            msg += "\n\nAdd these LOPs upstream of the packager and try again."
+            log.append(f"  [4/9] Auditing stage ...... FAIL")
+            for b in blocking:
+                log.append(f"    [FAIL] {b}")
+            node.parm("log_output").set("\n".join(log))
+            if _has_ui():
+                hou.ui.displayMessage(msg, severity=hou.severityType.Error)
+            return
 
         if not rs_ok and _has_ui():
             if not hou.ui.displayConfirmation(
