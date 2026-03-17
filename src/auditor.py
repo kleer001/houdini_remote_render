@@ -88,35 +88,63 @@ def audit_stage(stage) -> AuditReport:
 
 
 def ensure_render_settings(stage) -> None:
-    """Author a minimal /Render/rendersettings prim if none exists.
+    """Ensure a RenderSettings prim exists with wired products and camera.
 
-    When creating a fallback RenderSettings, wires the ``products``
-    relationship to every RenderProduct already in the scene and sets
-    the ``camera`` relationship to the first Camera found.
+    If no RenderSettings exists, creates a minimal one at
+    ``/Render/rendersettings``.
+
+    For ALL RenderSettings prims (existing or newly created), ensures
+    the ``products`` relationship points to every RenderProduct in the
+    scene and the ``camera`` relationship points to the first Camera
+    found.  This fixes scenes where a renderer-specific LOP (e.g.
+    Redshift RenderSettings) authors attributes but doesn't wire the
+    standard USD relationships that ``redshiftUsdCmdLine`` and
+    ``husk`` need to locate outputs.
     """
     from pxr import Gf, Sdf, UsdRender
 
-    for prim in stage.Traverse():
-        if prim.GetTypeName() == "RenderSettings":
-            return
-
-    render_scope = stage.DefinePrim("/Render", "Scope")
-    settings = UsdRender.Settings.Define(stage, "/Render/rendersettings")
-    settings.GetResolutionAttr().Set(Gf.Vec2i(1920, 1080))
-
-    # Wire products and camera relationships so husk can find them
+    # Collect all RenderProduct and Camera paths in one pass
     product_paths = []
     camera_path = None
+    settings_prims = []
     for prim in stage.Traverse():
-        if prim.GetTypeName() == "RenderProduct":
+        type_name = prim.GetTypeName()
+        if type_name == "RenderSettings":
+            settings_prims.append(prim)
+        elif type_name == "RenderProduct":
             product_paths.append(prim.GetPath())
-        elif prim.GetTypeName() == "Camera" and camera_path is None:
+        elif type_name == "Camera" and camera_path is None:
             camera_path = prim.GetPath()
 
-    if product_paths:
-        settings.GetProductsRel().SetTargets(product_paths)
-    if camera_path:
-        settings.GetCameraRel().SetTargets([camera_path])
+    # Create a fallback RenderSettings if none exists
+    if not settings_prims:
+        stage.DefinePrim("/Render", "Scope")
+        rs = UsdRender.Settings.Define(stage, "/Render/rendersettings")
+        rs.GetResolutionAttr().Set(Gf.Vec2i(1920, 1080))
+        settings_prims.append(rs.GetPrim())
+
+    # Create a fallback RenderProduct if none exists.
+    # Without a RenderProduct, renderers have no output path and
+    # produce no image files.
+    if not product_paths:
+        scope = stage.GetPrimAtPath("/Render")
+        if not scope:
+            scope = stage.DefinePrim("/Render", "Scope")
+        products_scope = stage.GetPrimAtPath("/Render/Products")
+        if not products_scope:
+            products_scope = stage.DefinePrim("/Render/Products", "Scope")
+        product = UsdRender.Product.Define(stage, "/Render/Products/beauty")
+        product_paths.append(product.GetPrim().GetPath())
+
+    # Wire products and camera on every RenderSettings prim
+    for prim in settings_prims:
+        settings = UsdRender.Settings(prim)
+
+        if product_paths and not settings.GetProductsRel().GetTargets():
+            settings.GetProductsRel().SetTargets(product_paths)
+
+        if camera_path and not settings.GetCameraRel().GetTargets():
+            settings.GetCameraRel().SetTargets([camera_path])
 
 
 def check_render_camera(stage) -> str | None:
