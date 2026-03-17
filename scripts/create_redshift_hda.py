@@ -179,12 +179,17 @@ def create_hda():
 
     ptg.append(rs_folder)
 
-    # === Footer: version stamp ===
+    # === Footer: version stamp (disabled — not user-editable) ===
     version_parm = hou.StringParmTemplate(
         "hda_version", "HDA Version", 1,
         default_value=("v0.1.72 (2d10711)",),
     )
     version_parm.setTags({"spare_category": "Version"})
+    # Always-true disable condition locks the field from user editing
+    version_parm.setConditional(
+        hou.parmCondType.DisableWhen,
+        '{ hda_version == "" } { hda_version != "" }',
+    )
     ptg.append(version_parm)
 
     # Apply parameter template group
