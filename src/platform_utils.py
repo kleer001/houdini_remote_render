@@ -132,3 +132,68 @@ fi
     return """
 # HFS not known at packaging time — hython/husk must be on PATH
 """
+
+
+def detect_redshift() -> str | None:
+    """Return ``$REDSHIFT_COREDATAPATH`` from environment, or None.
+
+    Falls back to common Linux install paths if the env var is unset.
+    """
+    rs = os.environ.get("REDSHIFT_COREDATAPATH")
+    if rs and os.path.isdir(rs):
+        return rs
+
+    for fallback in ("/usr/redshift", "/opt/redshift"):
+        if os.path.isdir(fallback):
+            return fallback
+
+    return None
+
+
+def get_redshift_binary(name: str) -> str:
+    """Locate a binary inside ``$REDSHIFT_COREDATAPATH/bin/``.
+
+    Returns the full path to the executable.
+    Raises RuntimeError if the path cannot be resolved.
+    """
+    rs = detect_redshift()
+    if not rs:
+        raise RuntimeError(
+            f"Cannot locate {name}: $REDSHIFT_COREDATAPATH is not set "
+            "and no Redshift install found at /usr/redshift or /opt/redshift."
+        )
+
+    binary = f"{name}.exe" if platform.system() == "Windows" else name
+    path = os.path.join(rs, "bin", binary)
+
+    if not os.path.isfile(path):
+        raise RuntimeError(
+            f"{name} not found at {path}. "
+            f"Expected it inside $REDSHIFT_COREDATAPATH/bin/ "
+            f"(REDSHIFT_COREDATAPATH={rs})."
+        )
+
+    return path
+
+
+def redshift_env_block(rs_path: str | None) -> str:
+    """Return a bash snippet that sets up the Redshift environment.
+
+    Sets ``REDSHIFT_COREDATAPATH``, adds ``bin/`` to ``PATH`` and
+    ``LD_LIBRARY_PATH``, and echoes the license server if configured.
+    """
+    if rs_path:
+        return f"""
+# Redshift environment
+export REDSHIFT_COREDATAPATH="${{REDSHIFT_COREDATAPATH:-{rs_path}}}"
+export PATH="$REDSHIFT_COREDATAPATH/bin:$PATH"
+export LD_LIBRARY_PATH="$REDSHIFT_COREDATAPATH/bin:${{LD_LIBRARY_PATH:-}}"
+
+if [ -n "${{redshift_LICENSE:-}}" ]; then
+    echo "License server: $redshift_LICENSE"
+fi
+"""
+    return """
+# REDSHIFT_COREDATAPATH not known at packaging time —
+# redshiftUsdCmdLine must already be on PATH
+"""

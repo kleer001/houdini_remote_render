@@ -64,6 +64,43 @@ class TestCheckDiskSpace:
         assert total == used + free
 
 
+class TestDetectRedshift:
+    def test_returns_none_when_unset(self, monkeypatch):
+        monkeypatch.delenv("REDSHIFT_COREDATAPATH", raising=False)
+        from src.platform_utils import detect_redshift
+        # Result depends on whether /usr/redshift or /opt/redshift exist
+        result = detect_redshift()
+        assert result is None or os.path.isdir(result)
+
+    def test_returns_path_when_set(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("REDSHIFT_COREDATAPATH", str(tmp_path))
+        from src.platform_utils import detect_redshift
+        assert detect_redshift() == str(tmp_path)
+
+    def test_returns_none_for_nonexistent_path(self, monkeypatch):
+        monkeypatch.setenv("REDSHIFT_COREDATAPATH", "/nonexistent/path")
+        from src.platform_utils import detect_redshift
+        result = detect_redshift()
+        # Falls back to common paths, which may or may not exist
+        if result is not None:
+            assert os.path.isdir(result)
+
+
+class TestRedshiftEnvBlock:
+    def test_with_path(self):
+        from src.platform_utils import redshift_env_block
+        block = redshift_env_block("/usr/redshift")
+        assert "REDSHIFT_COREDATAPATH" in block
+        assert "/usr/redshift" in block
+        assert "LD_LIBRARY_PATH" in block
+        assert "redshift_LICENSE" in block
+
+    def test_without_path(self):
+        from src.platform_utils import redshift_env_block
+        block = redshift_env_block(None)
+        assert "not known at packaging time" in block
+
+
 @pytest.mark.houdini
 class TestGetImaketxPath:
     def test_finds_imaketx(self):

@@ -14,7 +14,7 @@ Houdini Remote Render & Cache — a collection of Houdini HDAs that package scen
 
 3. **Mantra Render Packager** — a ROP HDA that wraps a Mantra ROP with remote packaging. Saves a portable `.hip` with rewritten output paths, generates an hbatch launch script, and writes metadata/manifest.
 
-4. **Redshift ROP** — planned. Remote packaging for Redshift render jobs.
+4. **Redshift USD Packager** — a LOP HDA that packages USD scenes for remote rendering via `redshiftUsdCmdLine`. Same pipeline as Karma (flatten → USDZ → wrapper → render script) but generates a Redshift-specific launch script. No Houdini required on the render farm — `redshiftUsdCmdLine` bundles its own USD libs.
 
 **Environment:** Houdini 21.0+ (Indie license, `.hdalc` extension), Python 3.11+, Linux. HFS at `/opt/hfs21.0.631`.
 
@@ -158,14 +158,46 @@ When the Karma USD Packager runs, it discovers upstream Remote File Cache nodes 
 
 **Output structure:** `$HIP/{shot_name}_P{pod}T{team}_v{NNN}/` with subdirs: `Output/`, `Scenes/`, `Scripts/`.
 
+### Redshift USD Packager (LOP)
+
+**HDA structure:** LOP subnet (pass-through, same as Karma). Packages the Solaris USD stage for remote rendering via `redshiftUsdCmdLine` — no Houdini required on the render farm.
+
+**Pipeline:** Same as Karma: validate → resolve cache dependencies → audit → create dirs → package upstream caches → inject output paths → flatten & USDZ → write wrapper → **write Redshift render script** → write orchestration script → write manifest.
+
+**Modules:**
+
+1. **redshift_validator** — checks for `redshift:` namespaced attributes on RenderSettings prims, warns on UsdPreviewSurface materials
+2. **redshift_script_writer** — generates `run_render.sh` calling `redshiftUsdCmdLine` with confirmed CLI flags: `-f START -n COUNT -i INC -device GPU -texturecachebudget GB`
+3. **redshift_info_writer** — writes machine-readable `render_info.txt` with renderer=redshift
+4. **redshift_manifest** — human-readable packaging report with GPU device, texture cache, OCIO config
+
+**HDA scripts (`hda_scripts_redshift/`):**
+
+- `PythonModule.py` — verify and package callbacks; mirrors Karma PythonModule pattern (LOP stage access, USDZ packaging). Delegates `_bake_houdini_paths()` to Karma's implementation.
+- `btn_verify.py` / `btn_package.py` — one-liners: `hou.phm().on_verify_clicked(kwargs)`
+- `OnCreated.py` — auto-wires into LOP network, sets Redshift brand red `(0.8, 0.15, 0.15)`, creates network box
+
+**Key implementation details:**
+- Uses `redshiftUsdCmdLine` (not `husk`) — standalone, no Houdini license needed on farm
+- Redshift LOP node type is `redshift::1.0` / `redshift::1.1` (confirmed via hython)
+- Hydra delegate name: `HdRedshiftRendererPlugin` (viewport only — `redshiftUsdCmdLine` bypasses Hydra entirely)
+- No `--make-output-path` equivalent — script includes `mkdir -p ../Output`
+- GPU-only renderer — no CPU fallback
+- `redshift_LICENSE=port@host` (lowercase `redshift`) for farm licensing
+- Environment: `REDSHIFT_COREDATAPATH`, `LD_LIBRARY_PATH`, `PATH` — all set in `redshift_env_block()`
+- Reuses `output_injector.py` as-is — `<F4>` frame token works with `redshiftUsdCmdLine`
+- Reuses `auditor.py`, `packager.py`, `wrapper_writer.py`, `classifier.py`, `gatherer.py` — all renderer-agnostic
+
+**Output structure:** `$HIP/{shot_name}_P{pod}T{team}_v{NNN}/` with subdirs: `Output/`, `Textures/`, `Cache/`, `Scenes/`, `Scripts/`.
+
 ## Shared modules
 
 - **`validator.py`** — `validate_shot_name()` and `validate_hip_saved()` are used by all HDAs
-- **`platform_utils.py`** — `ensure_dir()`, `normalize_path()`, `check_disk_space()` are used by all HDAs
+- **`platform_utils.py`** — `ensure_dir()`, `normalize_path()`, `check_disk_space()` are used by all HDAs; `detect_redshift()`, `get_redshift_binary()`, `redshift_env_block()` for Redshift support
 - **`cache_validator.py`** — `validate_frame_range()` is reused by the Mantra packager
 - **`cache_scene_writer.py`** — `backup_hip_as_zip()` is reused by the Mantra packager; `save_portable_hip_multi()` is used by the Karma packager for combined cache+render packaging
-- **`dependency_resolver.py`** — DAG discovery and topological sort, used by the Karma packager to find upstream cache nodes
-- **`orchestration_writer.py`** — `run_all.sh` generation, used by the Karma packager for combined packaging
+- **`dependency_resolver.py`** — DAG discovery and topological sort, used by Karma and Redshift packagers to find upstream cache nodes
+- **`orchestration_writer.py`** — `run_all.sh` generation, used by Karma and Redshift packagers for combined packaging
 
 ## Deliverable = HDA + src/
 
@@ -193,6 +225,26 @@ Since the commit hash isn't known until after committing, the workflow is: commi
 - Texture tool is `imaketx` (`$HFS/bin/imaketx`), not `maketx`. Output formats: OpenEXR, RAT, TIFF (no `.tx`)
 - **husk resolves `productName` paths relative to CWD**, not the USD file location. The render script must `cd Scenes/` before calling husk so that `../Output/` resolves correctly to the shot root's `Output/` directory.
 - husk frame range flags: `-f START -n COUNT -i INC` (not `-f START END`)
+
+## Redshift API gotchas
+
+- `redshiftUsdCmdLine` frame flags are identical to husk: `-f START -n COUNT -i INC`
+- `redshiftUsdCmdLine` resolves `productName` paths relative to CWD (same as husk) — render script must `cd Scenes/`
+- `redshiftUsdCmdLine` has NO `--make-output-path` — must `mkdir -p ../Output` in script
+- Redshift LOP node type is `redshift::1.0` or `redshift::1.1` (NOT `redshift_rendersettings`)
+- Redshift Hydra delegate: `HdRedshiftRendererPlugin` — but `redshiftUsdCmdLine` bypasses Hydra entirely
+- `redshift_LICENSE=port@host` — note lowercase `redshift` (NOT `REDSHIFT_LICENSE`)
+- `REDSHIFT_COREDATAPATH` default on Linux: `/usr/redshift`
+- `REDSHIFT_ABORTONLICENSEFAIL` — set to abort on license failure instead of watermark rendering
+- On Linux, `PXR_PLUGINPATH_NAME` must be set via system env or Houdini packages (NOT `.env` file) for Solaris
+- Houdini 21 Hydra 2.0 incompatibility: affects Solaris viewport only, NOT `redshiftUsdCmdLine`
+- `.rstexbin` pre-conversion: `redshiftTextureProcessor` writes side-by-side (same dir, same base name) — no output dir flag
+- USDZ input support was added in Redshift 2025.5.0
+- `redshiftUsdCmdLine` was introduced in Redshift 2025.2.0
+- **UDIM textures inside USDZ DO NOT WORK** — OpenUSD bug #1558. Use loose textures with wrapper `.usda` instead
+- UsdPreviewSurface rendering was added in Redshift 2025.3 — works but without RS-specific features
+- `-oif PATH_PATTERN` (RS 2026.0+) overrides output path with `{AOV}` and `%d` substitution tags
+- GPU concurrency: cannot have multiple RS processes rendering on the same GPU simultaneously
 
 ## Testing patterns
 

@@ -15,20 +15,103 @@ renderer is integrated: a parallel set of `mantra_*.py` modules plus
 
 ---
 
+## Verified Findings
+
+> Confirmed via official Maxon documentation and headless Houdini 21.0.631
+> testing (2026-03-16). Redshift version: 2026.3.1.
+
+### `redshiftUsdCmdLine` CLI Flags (CONFIRMED)
+
+Source: https://help.maxon.net/r3d/houdini/en-us/Content/html/USD+Command+Line.html
+
+| Flag | Parameter | Default | Description |
+|------|-----------|---------|-------------|
+| `-f` | number | 1 | Start frame number |
+| `-n` | number | 1 | Number of frames to render including start frame |
+| `-i` | number | 1 | Frame increment |
+| `-device` | ordinal or "all" | default GPU | GPU device selection |
+| `-texturecachebudget` | number (GB) | default | Texture cache in GB |
+| `-cachepath` | folder path | default | Cache folder |
+| `-skippostfx` | (no param) | disabled | Skip post-processing |
+| `-ocioconfig` | file path | default | OCIO config file |
+| `-ociorenderspace` | string | default | OCIO render space |
+| `-ociodisplay` | string | default | OCIO display |
+| `-ocioview` | string | default | OCIO view |
+| `-oip` | path | USD-defined | Override output image path (ALL AOVs) |
+| `-ores` | WxH format | USD-defined | Override resolution |
+| `-oro` | file path | none | Render options override file |
+| `-V` / `-verbose` | 0-6 | default | Verbosity level |
+| `-restart-delegate` | (no param) | disabled | Restart render delegate every frame |
+| `-s` / `-settings` | prim path | default | Render settings prim |
+| `-c` / `-camera` | prim path | default | Camera prim |
+| `-purpose` | comma-sep tokens | "geometry,render" | USD render purpose |
+| `-crop` | x y w h | none | Crop region |
+| `-list-settings` | (no param) | disabled | List settings prims and exit |
+| `-list-cameras` | (no param) | disabled | List cameras and exit |
+| `-override-materials` | R G B | none | Override all materials |
+| `-disable-scene-lights` | (no param) | disabled | Disable lights |
+| `-shutter-open` / `-shutter-close` | number | stage-defined | Motion blur overrides |
+| `-hybrid` | 0 or 1 | stage-defined | Hybrid rendering |
+
+### Redshift Environment Variables (CONFIRMED)
+
+| Variable | Description |
+|----------|-------------|
+| `REDSHIFT_COREDATAPATH` | Core install path (default `/usr/redshift` on Linux) |
+| `REDSHIFT_LOCALDATAPATH` | Local data path (default `~/redshift`) |
+| `REDSHIFT_LICENSEPATH` | License file search path |
+| `REDSHIFT_GPUDEVICES` | Comma-separated GPU ordinals (env var alternative to `-device`) |
+| `REDSHIFT_CACHEPATH` | Disk cache path override |
+| `REDSHIFT_TEXTURECACHEBUDGET` | Texture cache budget override (env var alternative) |
+| `REDSHIFT_ABORTONLICENSEFAIL` | Abort on license failure (important for farms) |
+| `REDSHIFT_PATHOVERRIDE_FILE` | Text file for asset path remapping |
+| `REDSHIFT_PATHOVERRIDE_STRING` | Direct asset path override |
+| `redshift_LICENSE=port@host` | License server (**lowercase** `redshift`!) |
+| `LD_LIBRARY_PATH` | Needs `$REDSHIFT_COREDATAPATH/bin` |
+| `PATH` | Needs `$REDSHIFT_COREDATAPATH/bin` |
+| `OCIO` | OCIO config path override |
+
+### Houdini Node Types (CONFIRMED on hython 21.0.631)
+
+| Context | Node Type | Description |
+|---------|-----------|-------------|
+| LOP | `redshift::1.0` | Redshift render settings LOP |
+| LOP | `redshift::1.1` | Redshift render settings LOP (v1.1) |
+| LOP | `redshift_rendervars::1.0` | Redshift render variables LOP |
+| ROP | `Redshift_IPR` | Redshift IPR ROP |
+| SOP | `redshift_instancefileSOP` | Redshift instance file |
+| SOP | `redshift_proxySOP` | Redshift proxy |
+| VOP | `redshift_material` | Redshift material |
+| VOP | `redshift_usd_material` | Redshift USD material |
+| VOP | `redshift_light_shader` | Redshift light shader |
+| VOP | `redshift_usd_light_shader` | Redshift USD light shader |
+| Hydra | `HdRedshiftRendererPlugin` | Hydra delegate name |
+
+### Version Info (CONFIRMED)
+
+- Local Redshift install: **2026.3.1**
+- `redshiftUsdCmdLine` was added in **Redshift 2025.2.0** (Dec 2024)
+- USDZ asset rendering was added in **Redshift 2025.5.0** (June 2025)
+- Windows UNC path bug fixed in **2025.5.0**
+
+---
+
 ## Decision: `redshiftUsdCmdLine` vs husk + Hydra delegate
 
 | | redshiftUsdCmdLine | husk --renderer HdRedshiftRendererPlugin |
 |---|---|---|
 | Houdini on farm | Not required | Required |
-| Hydra 2.0 (H21) | Not affected | Compatibility issues (early 2026) |
+| Hydra 2.0 (H21) | Not affected (bypasses Hydra entirely) | Compatibility issues (Hydra delegate) |
 | Frame flags | `-f START -n COUNT -i INC` | `-f START -n COUNT -i INC` |
 | Env setup | `REDSHIFT_COREDATAPATH` only | `HFS` + `PXR_PLUGINPATH_NAME` + Redshift paths |
 | Standalone | Yes | No |
 
-**Recommendation:** Target `redshiftUsdCmdLine` as the primary path. It is
-self-contained, avoids Hydra 2.0 headaches on Houdini 21, and doesn't require
-a Houdini license on the render node. Optionally support husk as a secondary
-path later.
+**Decision: CONFIRMED.** `redshiftUsdCmdLine` is confirmed working and is the
+correct primary path. It is self-contained, bypasses Hydra entirely (avoiding
+the Hydra 2.0 compatibility issues that affect the Solaris viewport), and
+doesn't require a Houdini license on the render node. Available since Redshift
+2025.2.0 (Dec 2024); our local install is 2026.3.1. Optionally support husk as
+a secondary path later.
 
 ---
 
@@ -46,7 +129,8 @@ Add `detect_redshift()` and `get_redshift_binary(name)` alongside the existing
 ```
 detect_redshift() -> str | None     # returns $REDSHIFT_COREDATAPATH or None
 get_redshift_binary(name) -> str    # e.g. "redshiftUsdCmdLine", "redshiftTextureProcessor"
-redshift_env_block() -> str         # bash snippet: export REDSHIFT_COREDATAPATH, PATH, license
+redshift_env_block() -> str         # bash snippet: export REDSHIFT_COREDATAPATH, PATH,
+                                    # LD_LIBRARY_PATH, redshift_LICENSE, REDSHIFT_ABORTONLICENSEFAIL
 ```
 
 ### 0.2 `output_injector.py` — `<F4>` token confirmed compatible
@@ -78,8 +162,8 @@ Follow the Mantra pattern: a parallel set of `redshift_*.py` modules.
 
 Validates that the connected node is a Redshift-compatible LOP setup.
 
-- Check for Redshift render settings in the stage (look for `redshift:`
-  namespaced attributes on RenderSettings prims)
+- Check for Redshift LOP nodes upstream (`redshift::1.0`, `redshift::1.1`)
+  and/or `redshift:` namespaced attributes on RenderSettings prims in the stage
 - Validate GPU availability warning (advisory, not blocking)
 - Reuse `validate_shot_name()` and `validate_hip_saved()` from `validator.py`
 - Reuse `validate_frame_range()` from `cache_validator.py`
@@ -127,22 +211,34 @@ def write_redshift_script(
 ) -> None:
 ```
 
-**Key differences from `render_script_writer.py`:**
+**Key differences from `render_script_writer.py` (CONFIRMED flags):**
 
 | Karma (husk) | Redshift (redshiftUsdCmdLine) |
 |---|---|
-| `hfs_source_block()` sources HFS | `redshift_env_block()` exports `REDSHIFT_COREDATAPATH`, adds `bin/` to PATH |
+| `hfs_source_block()` sources HFS | `redshift_env_block()` exports `REDSHIFT_COREDATAPATH`, `LD_LIBRARY_PATH`, adds `bin/` to PATH |
 | `--renderer BRAY_HdKarma` | Not needed (native renderer) |
 | `--engine xpu/cpu` | Not applicable (always GPU) |
-| `--restart-delegate N` | Not applicable |
+| `--restart-delegate N` | `-restart-delegate` (no param, per-frame delegate restart) |
 | `--exrmode`, `--autotile` | Not applicable |
 | `--make-output-path` | Needs manual `mkdir -p` in script |
-| `--headlight none` | Not applicable |
+| `--headlight none` | `-disable-scene-lights` (disables all lights) |
 | — | `-device all` or `-device N` (GPU selection) |
 | — | `-texturecachebudget N` (GB) |
 | — | `-cachepath PATH` |
 | — | `-skippostfx` |
-| — | `-ocioconfig PATH` |
+| — | `-ocioconfig PATH` / `-ociorenderspace` / `-ociodisplay` / `-ocioview` |
+| — | `-oip PATH` (override output image path, ALL AOVs) |
+| — | `-ores WxH` (override resolution) |
+| — | `-oro FILE` (render options override file) |
+| — | `-V 0-6` / `-verbose 0-6` (verbosity level) |
+| — | `-s PRIM` / `-settings PRIM` (render settings prim override) |
+| — | `-c PRIM` / `-camera PRIM` (camera prim override) |
+| — | `-purpose TOKENS` (USD render purpose, default "geometry,render") |
+| — | `-crop x y w h` (crop region) |
+| — | `-list-settings` / `-list-cameras` (introspection, exit after listing) |
+| — | `-override-materials R G B` (clay render) |
+| — | `-shutter-open` / `-shutter-close` (motion blur overrides) |
+| — | `-hybrid 0\|1` (hybrid rendering toggle) |
 
 Frame flags are identical: `-f START -n COUNT -i INC`.
 
@@ -202,9 +298,10 @@ Two callbacks: `on_verify_clicked()` and `on_package_clicked()`.
 **Key changes from the Karma PythonModule:**
 
 - **Node detection:** Instead of walking upstream for `karmarendersettings`,
-  look for Redshift render settings in the USD stage itself (check for
-  `redshift:` namespaced attributes on RenderSettings prims). This is more
-  robust since Redshift settings can come from multiple LOP nodes.
+  look for Redshift LOP nodes (`redshift::1.0`, `redshift::1.1`) upstream or
+  check for `redshift:` namespaced attributes on RenderSettings prims in the
+  USD stage. Also detect `redshift_rendervars::1.0` for AOV configuration.
+  This is more robust since Redshift settings can come from multiple LOP nodes.
 
 - **No engine selection:** Remove CPU/XPU logic entirely. Redshift is always
   GPU. Replace with GPU device selection (ordinal or "all").
@@ -335,22 +432,23 @@ pure USD — no changes needed.
   existing `cd Scenes/` pattern in render scripts is correct.
 
 - **USDZ input** — CONFIRMED. `redshiftUsdCmdLine` accepts `.usdz` files
-  directly as of Redshift 2025.5. The wrapper `.usda` sublayering approach
-  also works via standard ArResolver.
+  directly as of Redshift 2025.5.0 (June 2025). The wrapper `.usda`
+  sublayering approach also works via standard ArResolver. Our local install
+  (2026.3.1) is well past this requirement.
 
-- **`-oip` vs `-oif` flags** — CLARIFIED. `-oip PATH` overrides the output
-  **folder** (not filename). `-oif EXT` overrides the output **format**. Both
-  work on `redshiftUsdCmdLine`. Useful as fallbacks but not needed if
-  `productName` works correctly.
+- **`-oip` flag** — CONFIRMED. `-oip PATH` overrides the output image path
+  for **ALL AOVs** (not just the beauty pass). This overrides the USD-defined
+  `productName`. Useful as a fallback but not needed if `productName` works
+  correctly. Also available: `-ores WxH` for resolution override.
 
 ### Active risks:
 
-1. **Hydra 2.0 on Houdini 21** — Redshift's Hydra 2.0 support is recent
-   (2026.3). The Solaris viewport may have issues even if
-   `redshiftUsdCmdLine` works fine for batch rendering.
-   **Mitigation:** The packager only needs the viewport working well enough to
-   build the stage. Batch rendering via `redshiftUsdCmdLine` bypasses Hydra
-   entirely.
+1. **Hydra 2.0 on Houdini 21** — **CONFIRMED SAFE for our use case.**
+   Houdini 21 introduced Hydra 2.0 as default. Redshift's Hydra delegate
+   (`HdRedshiftRendererPlugin`) has compatibility issues with it, but this
+   affects the **Solaris viewport only**. `redshiftUsdCmdLine` bypasses Hydra
+   entirely and is unaffected. The packager doesn't use the viewport for
+   rendering, so this is **not a blocker**.
 
 2. **`.rstexbin` side-by-side placement** — `redshiftTextureProcessor` writes
    `.rstexbin` next to the source file (same dir, same base name). If the
@@ -372,11 +470,14 @@ pure USD — no changes needed.
    warning). The render script should fail fast with a clear error if no GPU
    is detected.
 
-5. **Redshift licensing** — Requires `redshift_LICENSE=port@host` env var
-   (note: lowercase `redshift`). Missing or misconfigured license = render
-   fails silently or with cryptic errors.
-   **Mitigation:** The render script should echo the license server address
-   and verify connectivity before starting the render.
+5. **Redshift licensing** — **CONFIRMED:** Requires `redshift_LICENSE=port@host`
+   env var (lowercase `redshift` confirmed from Maxon docs). The
+   `REDSHIFT_ABORTONLICENSEFAIL` env var can force an explicit abort on
+   license failure instead of cryptic errors. Missing or misconfigured
+   license = render fails silently unless `REDSHIFT_ABORTONLICENSEFAIL` is set.
+   **Mitigation:** The render script should export
+   `REDSHIFT_ABORTONLICENSEFAIL=1`, echo the license server address, and
+   verify connectivity before starting the render.
 
 6. **UsdPreviewSurface materials not supported** — USDZ files from external
    sources (Sketchfab, Apple AR) use `UsdPreviewSurface` shaders. Redshift
@@ -385,12 +486,15 @@ pure USD — no changes needed.
    are detected. For LOP workflows this is rare (users build Redshift
    materials in Solaris), but worth flagging.
 
-7. **`RSProceduralUSD.so` manual install** — The Redshift USD Procedural
-   plugin must be manually copied into Redshift's `Procedurals/` directory,
-   matched to the correct USD version. Must be redone after each Redshift
-   version update.
-   **Mitigation:** Document in the HDA help. The verify step can check for
-   the procedural's presence if USD procedural prims are in the scene.
+7. **`RSProceduralUSD.so` manual install** — **CONFIRMED:** This issue is
+   specific to the Redshift **Hydra delegate** (`HdRedshiftRendererPlugin`),
+   NOT `redshiftUsdCmdLine`. The USD Procedural plugin must be manually
+   copied into Redshift's `Procedurals/` directory and matched to the correct
+   USD version when using the Hydra delegate via husk. Since we use
+   `redshiftUsdCmdLine` (which has its own built-in USD support), this is
+   **not a concern for our pipeline**.
+   **Mitigation:** Only relevant if we add husk as a secondary render path.
+   Document in HDA help for users who render via husk.
 
 8. **Animated attribute limitations** — When using single-process batch
    rendering (all frames in one invocation), only object transforms and camera
