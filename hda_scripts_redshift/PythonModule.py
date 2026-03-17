@@ -670,17 +670,20 @@ def _bake_houdini_paths(flat_usda_path, bake_dir, frame_range=None):
 
     # _ensure_src_path has already added repo_root to sys.path.
     # The Karma PythonModule lives at repo_root/hda_scripts/PythonModule.py.
-    karma_pm_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "hda_scripts", "PythonModule.py",
-    )
-    # In the HDA context, __file__ may not be set. Fall back to sys.path[0].
-    if not os.path.isfile(karma_pm_path):
-        for p in sys.path:
-            candidate = os.path.join(p, "hda_scripts", "PythonModule.py")
-            if os.path.isfile(candidate):
-                karma_pm_path = candidate
-                break
+    # __file__ is NOT defined inside HDA-embedded code, so we find the
+    # repo root from sys.path (set by _ensure_src_path).
+    karma_pm_path = None
+    for p in sys.path:
+        candidate = os.path.join(p, "hda_scripts", "PythonModule.py")
+        if os.path.isfile(candidate):
+            karma_pm_path = candidate
+            break
+
+    if karma_pm_path is None:
+        raise FileNotFoundError(
+            "Cannot find hda_scripts/PythonModule.py on sys.path. "
+            "Is the repo root on sys.path via _ensure_src_path()?"
+        )
 
     spec = importlib.util.spec_from_file_location("karma_pm", karma_pm_path)
     karma_pm = importlib.util.module_from_spec(spec)
