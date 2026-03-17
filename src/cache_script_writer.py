@@ -7,7 +7,7 @@ hbatch's ``render`` command only works with ROP nodes and silently skips SOPs.
 import os
 from datetime import datetime
 
-from src.platform_utils import detect_hfs, hfs_source_block, hfs_bat_block, make_executable
+from src.platform_utils import detect_hfs, hfs_source_block, make_executable, copy_launcher
 
 
 def write_cache_script(
@@ -72,24 +72,5 @@ echo "Cache complete."
 
     make_executable(output_path)
 
-    # Windows companion
-    bat_path = output_path.rsplit(".sh", 1)[0] + ".bat"
-    bat = f"""@echo off
-rem Remote File Cache — hython launcher
-rem Shot: {shot_name}
-rem Generated: {timestamp}
-
-cd /d "%~dp0.."
-{hfs_bat_block(hfs_path)}
-echo Starting cache: {shot_name}
-echo Frames: {frame_start}-{frame_end}
-echo Node: {cache_node_path}
-echo.
-
-hython -c "import hou, sys; hou.hipFile.load('Scenes/{hip_filename}'); node = hou.node('{cache_node_path}'); assert node, 'Node {cache_node_path} not found'; [node.parm(p).deleteAllKeyframes() for p in ('trange','f1','f2','f3')]; node.parm('trange').set(1); node.parm('f1').set({frame_start}); node.parm('f2').set({frame_end}); node.parm('f3').set(1); node.parm('execute').pressButton()"
-
-echo.
-echo Cache complete.
-"""
-    with open(bat_path, "w", newline="\r\n") as f:
-        f.write(bat)
+    # Cross-platform Python launcher
+    copy_launcher("run_cache.py", os.path.dirname(output_path))

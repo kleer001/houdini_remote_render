@@ -134,25 +134,32 @@ fi
 """
 
 
-def hfs_bat_block(hfs_path: str | None) -> str:
-    """Return a batch snippet that sets up the Houdini environment on Windows.
+def copy_launcher(name: str, dest_dir: str) -> str:
+    """Copy a launcher script from launchers/ into the package Scripts/ dir.
 
-    Calls ``houdini_setup.bat`` (the Windows equivalent of
-    ``houdini_setup_bash``).
+    Args:
+        name: Launcher filename (e.g. "run_render.py").
+        dest_dir: Destination directory (e.g. shot_root/Scripts/).
+
+    Returns:
+        Full path to the copied launcher.
     """
-    if hfs_path:
-        return f"""\
-rem Source Houdini environment
-if not defined HFS set "HFS={hfs_path}"
-if exist "%HFS%\\houdini_setup.bat" (
-    pushd "%HFS%"
-    call houdini_setup.bat
-    popd
-)
-"""
-    return """\
-rem HFS not known at packaging time — hython/husk must be on PATH
-"""
+    # Resolve launchers/ relative to repo root (one level up from src/)
+    src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    launcher_path = os.path.join(src_dir, "launchers", name)
+
+    if not os.path.isfile(launcher_path):
+        raise FileNotFoundError(
+            f"Launcher not found: {launcher_path}. "
+            f"Expected it in the launchers/ directory of the repo."
+        )
+
+    import shutil
+    os.makedirs(dest_dir, exist_ok=True)
+    dest = os.path.join(dest_dir, name)
+    shutil.copy2(launcher_path, dest)
+    make_executable(dest)
+    return dest
 
 
 def detect_redshift() -> str | None:
@@ -220,17 +227,3 @@ fi
 """
 
 
-def redshift_bat_block(rs_path: str | None) -> str:
-    """Return a batch snippet that sets up the Redshift environment on Windows."""
-    if rs_path:
-        return f"""\
-rem Redshift environment
-if not defined REDSHIFT_COREDATAPATH set "REDSHIFT_COREDATAPATH={rs_path}"
-set "PATH=%REDSHIFT_COREDATAPATH%\\bin;%PATH%"
-
-if defined redshift_LICENSE echo License server: %redshift_LICENSE%
-"""
-    return """\
-rem REDSHIFT_COREDATAPATH not known at packaging time —
-rem redshiftUsdCmdLine must already be on PATH
-"""

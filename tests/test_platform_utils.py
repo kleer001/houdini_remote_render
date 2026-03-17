@@ -101,6 +101,30 @@ class TestRedshiftEnvBlock:
         assert "not known at packaging time" in block
 
 
+class TestCopyLauncher:
+    def test_copies_run_render(self, tmp_path):
+        from src.platform_utils import copy_launcher
+        dest = copy_launcher("run_render.py", str(tmp_path))
+        assert os.path.isfile(dest)
+        with open(dest) as f:
+            assert "render_info.txt" in f.read()
+
+    def test_copies_run_cache(self, tmp_path):
+        from src.platform_utils import copy_launcher
+        dest = copy_launcher("run_cache.py", str(tmp_path))
+        assert os.path.isfile(dest)
+
+    def test_copies_run_all(self, tmp_path):
+        from src.platform_utils import copy_launcher
+        dest = copy_launcher("run_all.py", str(tmp_path))
+        assert os.path.isfile(dest)
+
+    def test_nonexistent_launcher_raises(self, tmp_path):
+        from src.platform_utils import copy_launcher
+        with pytest.raises(FileNotFoundError):
+            copy_launcher("does_not_exist.py", str(tmp_path))
+
+
 @pytest.mark.houdini
 class TestGetImaketxPath:
     def test_finds_imaketx(self):

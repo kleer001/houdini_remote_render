@@ -7,7 +7,7 @@ render tokens — no Houdini license required on the remote machine.
 import os
 from datetime import datetime
 
-from src.platform_utils import detect_hfs, hfs_source_block, hfs_bat_block, make_executable
+from src.platform_utils import detect_hfs, hfs_source_block, make_executable, copy_launcher
 
 
 def write_mantra_script(
@@ -65,37 +65,5 @@ echo "Render complete."
 
     make_executable(output_path)
 
-    # Windows companion
-    # Batch for loop: for /L %%f in (start,inc,end) do ...
-    # printf pattern conversion: %04d → batch padding via set with leading zeros
-    bat_path = output_path.rsplit(".sh", 1)[0] + ".bat"
-    bat = f"""@echo off
-rem Remote Mantra Render — mantra standalone launcher (IFD)
-rem Shot: {shot_name}
-rem Generated: {timestamp}
-
-cd /d "%~dp0.."
-{hfs_bat_block(hfs_path)}
-set "HOUDINI_TEXTURE_PATH=%CD%\\Textures;&"
-
-echo Starting Mantra render: {shot_name}
-echo Frames: {frame_start}-{frame_end} (inc {frame_inc})
-echo IFD pattern: {ifd_pattern}
-echo.
-
-cd IFDs
-setlocal enabledelayedexpansion
-for /L %%f in ({frame_start},{frame_inc},{frame_end}) do (
-    set "frame=000000%%f"
-    set "padded=!frame:~-4!"
-    call set "ifd={ifd_pattern}" & rem printf pattern replaced below
-    echo Rendering frame %%f
-    mantra -V 2a -j 0 -f "{ifd_pattern.replace('%04d', '!padded!')}"
-)
-endlocal
-
-echo.
-echo Render complete.
-"""
-    with open(bat_path, "w", newline="\r\n") as f:
-        f.write(bat)
+    # Cross-platform Python launcher
+    copy_launcher("run_render.py", os.path.dirname(output_path))
