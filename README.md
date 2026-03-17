@@ -42,10 +42,11 @@ Packages a Solaris/LOP stage into a self-contained USDZ archive for remote rende
 
 ```bash
 cd SHOT_NAME_P1T1_v001
-bash Scripts/run_render.sh
+python Scripts/run_render.py          # cross-platform (recommended)
+# or: bash Scripts/run_render.sh      # Linux/macOS only
 ```
 
-The HDA is pass-through — it doesn't modify your live stage. It audits your scene, auto-converts textures, bundles everything into a USDZ, and generates a `husk` launch script with smart defaults.
+The HDA is pass-through — it doesn't modify your live stage. It audits your scene, auto-converts textures, bundles everything into a USDZ, and generates launch scripts with smart defaults.
 
 ### Remote File Cache (SOP)
 
@@ -58,10 +59,11 @@ Drop-in replacement for File Cache SOP with remote packaging. Same parameters, s
 
 ```bash
 cd SHOT_NAME_P1T1_v001
-bash Scripts/run_cache.sh
+python Scripts/run_cache.py           # cross-platform (recommended)
+# or: bash Scripts/run_cache.sh       # Linux/macOS only
 ```
 
-The portable `.hip` has rewritten cache paths so output lands in the package's `Cache/` directory. The generated script runs `hython` headlessly — no GUI needed.
+The portable `.hip` has rewritten cache paths so output lands in the package's `Cache/` directory. The launcher finds `hython` automatically and runs headlessly — no GUI needed.
 
 ### Redshift USD Packager (LOP)
 
@@ -73,10 +75,11 @@ Packages a Solaris/LOP stage for remote rendering with standalone `redshiftUsdCm
 
 ```bash
 cd SHOT_NAME_P1T1_v001
-bash Scripts/run_render.sh
+python Scripts/run_render.py          # cross-platform (recommended)
+# or: bash Scripts/run_render.sh      # Linux/macOS only
 ```
 
-The packager validates Redshift render settings (`redshift:` attributes), warns about UsdPreviewSurface materials, and generates a `redshiftUsdCmdLine` script with GPU device selection, texture cache, OCIO config, and all confirmed CLI flags.
+The packager validates Redshift render settings (`redshift:` attributes), warns about UsdPreviewSurface materials, and generates launch scripts with GPU device selection, texture cache, OCIO config, and all confirmed CLI flags.
 
 ### Mantra Render Packager (ROP)
 
@@ -88,7 +91,8 @@ Packages a Mantra ROP into self-contained IFD files with embedded geometry and s
 
 ```bash
 cd SHOT_NAME_P1T1_v001
-bash Scripts/run_render.sh
+python Scripts/run_render.py          # cross-platform (recommended)
+# or: bash Scripts/run_render.sh      # Linux/macOS only
 ```
 
 IFDs embed geometry and VEX shaders, so the render machine only needs Houdini's free render tokens — no interactive license.
@@ -99,7 +103,8 @@ When the Karma USD Packager detects upstream Remote File Cache nodes, it offers 
 
 ```bash
 cd SHOT_NAME_P1T1_v001
-bash Scripts/run_all.sh    # runs caches in dependency order, then renders
+python Scripts/run_all.py             # cross-platform (recommended)
+# or: bash Scripts/run_all.sh         # Linux/macOS only
 ```
 
 The dependency resolver follows both visible wires and "virtual wires" — Object Merge cross-references, file-on-disk coupling, expression references, and code-level `op:` paths — so the execution order is correct for typical production networks.
@@ -144,12 +149,12 @@ This project packages everything into a portable folder: USDZ with bundled textu
 | Missing AOVs | Warns that husk will render black without Beauty AOV |
 | Camera mismatch | Warns if RenderSettings camera doesn't exist |
 
-The generated `run_render.sh` includes smart defaults:
+Each package includes both `run_render.py` (cross-platform) and `run_render.sh` (Linux/macOS). The Python launcher reads `render_info.txt`, auto-discovers the renderer (Karma/Redshift/Mantra), finds binaries via `$HFS` or `$REDSHIFT_COREDATAPATH` or `PATH`, and includes `--dry-run` and logging. The generated scripts include smart defaults:
 
 - `--restart-delegate 1` auto-added for frame sequences (prevents memory accumulation)
 - `--make-output-path` always included
 - `--headlight none` always included (prevents phantom headlight)
-- Houdini environment auto-sourced from `$HFS`
+- Renderer environment auto-discovered at runtime (works on any machine)
 
 </details>
 
@@ -170,16 +175,18 @@ All features below have been tested end-to-end: build in Houdini, package with t
 <details>
 <summary><strong>Output structure</strong></summary>
 
-Both HDAs produce a folder at `$HIP/{shot_name}_P{pod}T{team}_v{NNN}/`:
+All HDAs produce a folder at `$HIP/{shot_name}_P{pod}T{team}_v{NNN}/`:
 
-**Karma USD Packager:**
+**Karma / Redshift USD Packager:**
 ```
 Output/              — Rendered frames land here
 Textures/            — Converted textures and UDIM tiles
 Cache/               — External caches (VDB, bgeo.sc, Alembic)
 Scenes/              — USDZ archive + .usda wrapper
-Scripts/             — run_render.sh (husk launcher)
-render_info.txt      — Frame range and USD filename
+Scripts/
+  run_render.py      — Cross-platform Python launcher (reads render_info.txt)
+  run_render.sh      — Linux/macOS bash launcher
+render_info.txt      — Single source of truth: renderer, frames, settings
 {shot}_manifest.txt  — Human-readable packaging report
 {hip_filename}.zip   — HIP backup
 ```
@@ -190,22 +197,12 @@ Cache/               — All cache outputs land here
 Output/              — Rendered frames
 Scenes/              — USDZ + wrapper + portable .hip for caches
 Scripts/
-  run_all.sh         — Orchestration: caches in order, then render
-  run_cache_001_*.sh — Per-cache hython scripts
-  run_render.sh      — husk launcher
+  run_all.py         — Cross-platform orchestrator (discovers & runs all scripts)
+  run_all.sh         — Linux/macOS orchestrator
+  run_cache_001_*.sh — Per-cache scripts
+  run_render.py      — Cross-platform render launcher
+  run_render.sh      — Linux/macOS render launcher
 {shot}_manifest.txt  — Packaging report with dependency chain
-```
-
-**Redshift USD Packager:**
-```
-Output/              — Rendered frames land here
-Textures/            — Converted textures and UDIM tiles
-Cache/               — External caches (VDB, bgeo.sc, Alembic)
-Scenes/              — USDZ archive + .usda wrapper
-Scripts/             — run_render.sh (redshiftUsdCmdLine launcher)
-render_info.txt      — Frame range, GPU device, USD filename
-{shot}_manifest.txt  — Human-readable packaging report
-{hip_filename}.zip   — HIP backup
 ```
 
 **Mantra Render Packager:**
@@ -213,7 +210,9 @@ render_info.txt      — Frame range, GPU device, USD filename
 Output/              — Rendered frames land here
 IFDs/                — Generated IFD files (embedded geometry + shaders)
 Textures/            — Gathered textures
-Scripts/             — run_render.sh (mantra standalone launcher)
+Scripts/
+  run_render.py      — Cross-platform Python launcher
+  run_render.sh      — Linux/macOS bash launcher
 render_info.txt      — Frame range, IFD pattern, engine
 {shot}_manifest.txt  — Human-readable packaging report
 {shot}_original.hip.zip — HIP backup
@@ -223,7 +222,9 @@ render_info.txt      — Frame range, IFD pattern, engine
 ```
 Cache/               — Cache output lands here when run remotely
 Scenes/              — Portable .hip file
-Scripts/             — run_cache.sh (hython launcher)
+Scripts/
+  run_cache.py       — Cross-platform Python launcher
+  run_cache.sh       — Linux/macOS bash launcher
 cache_info.txt       — Machine-readable metadata
 {shot}_manifest.txt  — Human-readable report
 {shot}_original.hip.zip — HIP backup
