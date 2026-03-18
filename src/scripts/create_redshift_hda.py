@@ -1,23 +1,23 @@
 #!/usr/bin/env hython
 """Create the Redshift USD Packager HDA definition.
 
-Run via: hython scripts/create_redshift_hda.py
+Run via: hython src/scripts/create_redshift_hda.py
 
-Creates hda/redshift_usd_packager.hdalc with all parameters and
-embedded scripts from hda_scripts_redshift/.
+Creates src/hda/redshift_usd_packager.hdalc with all parameters and
+embedded scripts from src/hda_scripts_redshift/.
 """
 
 import hou
 import os
 import sys
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HDA_PATH = os.path.join(REPO_ROOT, "hda", "redshift_usd_packager.hdalc")
-SCRIPTS_DIR = os.path.join(REPO_ROOT, "hda_scripts_redshift")
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+HDA_PATH = os.path.join(REPO_ROOT, "src", "hda", "redshift_usd_packager.hdalc")
+SCRIPTS_DIR = os.path.join(REPO_ROOT, "src", "hda_scripts_redshift")
 
 
 def read_script(filename):
-    """Read a script file from hda_scripts_redshift/."""
+    """Read a script file from src/hda_scripts_redshift/."""
     path = os.path.join(SCRIPTS_DIR, filename)
     with open(path, "r") as f:
         return f.read()

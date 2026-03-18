@@ -7,7 +7,7 @@ import tempfile
 
 LAUNCHERS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "launchers",
+    "src", "launchers",
 )
 
 

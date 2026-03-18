@@ -44,7 +44,7 @@ No build step. No linter configured. No `requirements.txt` — all dependencies 
 
 1. **`src/main.py:run_pipeline()`** — headless entry point. Takes a `Usd.Stage`, shot name, and hip dir. Used for scripted/batch packaging.
 
-2. **`hda_scripts/PythonModule.py`** — HDA callbacks (`on_verify_clicked`, `on_package_clicked`). These replicate the pipeline steps inline (not calling `run_pipeline`) because they need granular control over the UI: per-step log messages, `hou.ui.displayMessage` dialogs, confirmation prompts, and writing to the `log_output` parameter.
+2. **`src/hda_scripts/PythonModule.py`** — HDA callbacks (`on_verify_clicked`, `on_package_clicked`). These replicate the pipeline steps inline (not calling `run_pipeline`) because they need granular control over the UI: per-step log messages, `hou.ui.displayMessage` dialogs, confirmation prompts, and writing to the `log_output` parameter.
 
 Both follow the same sequence: validate → **resolve cache dependencies** → audit → create dirs → **package upstream caches** → inject output paths → flatten & USDZ → write wrapper → write render script → **write orchestration script** → write manifest.
 
@@ -66,7 +66,7 @@ Both follow the same sequence: validate → **resolve cache dependencies** → a
 12. **dependency_resolver** — discovers upstream Remote File Cache nodes via wired + virtual wires, topological sort, DAG formatting for verify display
 13. **orchestration_writer** — generates `run_all.sh` sequencing cache jobs then render
 
-**HDA scripts (`hda_scripts/`):**
+**HDA scripts (`src/hda_scripts/`):**
 
 - `PythonModule.py` — all logic; `_ensure_src_path()` adds repo root to `sys.path` based on HDA library file location
 - `btn_verify.py` / `btn_package.py` — one-liners: `hou.phm().on_verify_clicked(kwargs)`
@@ -89,7 +89,7 @@ Both follow the same sequence: validate → **resolve cache dependencies** → a
 5. **cache_info_writer** — writes machine-readable `cache_info.txt`
 6. **cache_manifest** — human-readable packaging report
 
-**HDA scripts (`hda_scripts_cache/`):**
+**HDA scripts (`src/hda_scripts_cache/`):**
 
 - `PythonModule.py` — verify and package callbacks; `_ensure_src_path()` pattern same as render packager
 - `btn_verify.py` / `btn_package.py` — one-liners: `hou.phm().on_verify_clicked(kwargs)`
@@ -121,7 +121,7 @@ When the Karma USD Packager runs, it discovers upstream Remote File Cache nodes 
 - `VirtualWire` — source, target, wire type, detail
 - `DependencyDAG` — cache units dict, execution order, virtual wires, warnings
 
-**Integration points** (`hda_scripts/PythonModule.py`):
+**Integration points** (`src/hda_scripts/PythonModule.py`):
 - `on_verify_clicked()` — shows the DAG summary (cache labels, virtual wires, execution order)
 - `on_package_clicked()` — resolves dependencies, asks user to confirm, packages caches via `save_portable_hip_multi()`, writes per-cache `run_cache_NNN.sh` scripts, generates `run_all.sh`
 
@@ -144,7 +144,7 @@ When the Karma USD Packager runs, it discovers upstream Remote File Cache nodes 
 5. **mantra_info_writer** — writes machine-readable `render_info.txt` with renderer=mantra, resolution, samples, camera, etc.
 6. **mantra_manifest** — human-readable packaging report with render-specific sections
 
-**HDA scripts (`hda_scripts_mantra/`):**
+**HDA scripts (`src/hda_scripts_mantra/`):**
 
 - `PythonModule.py` — verify and package callbacks; `_ensure_src_path()` pattern same as other packagers
 - `btn_verify.py` / `btn_package.py` — one-liners: `hou.phm().on_verify_clicked(kwargs)`
@@ -171,7 +171,7 @@ When the Karma USD Packager runs, it discovers upstream Remote File Cache nodes 
 3. **redshift_info_writer** — writes machine-readable `render_info.txt` with renderer=redshift
 4. **redshift_manifest** — human-readable packaging report with GPU device, texture cache, OCIO config
 
-**HDA scripts (`hda_scripts_redshift/`):**
+**HDA scripts (`src/hda_scripts_redshift/`):**
 
 - `PythonModule.py` — verify and package callbacks; mirrors Karma PythonModule pattern (LOP stage access, USDZ packaging). Delegates `_bake_houdini_paths()` to Karma's implementation.
 - `btn_verify.py` / `btn_package.py` — one-liners: `hou.phm().on_verify_clicked(kwargs)`
@@ -201,13 +201,13 @@ When the Karma USD Packager runs, it discovers upstream Remote File Cache nodes 
 
 ## Deliverable = HDA + src/
 
-The `.hdalc` files are the deliverable artifact — they are installed on other people's machines. The HDAs load `src/` modules at runtime via `_ensure_src_path()`, which resolves the repo root relative to the HDA library file. This means **any change to `src/` files is only effective if the updated `src/` directory is delivered alongside the HDA**. Editing `src/` locally without updating the HDA on disk is a local-only fix that won't reach other users. After changing any code (whether in `hda_scripts*/` or `src/`), always save the HDA definition to disk so the `.hdalc` is current.
+The `.hdalc` files are the deliverable artifact — they are installed on other people's machines. The HDAs load `src/` modules at runtime via `_ensure_src_path()`, which resolves the repo root relative to the HDA library file. This means **any change to `src/` files is only effective if the updated `src/` directory is delivered alongside the HDA**. Editing `src/` locally without updating the HDA on disk is a local-only fix that won't reach other users. After changing any code (whether in `src/hda_scripts*/` or other `src/` modules), always save the HDA definition to disk so the `.hdalc` is current.
 
 ## HDA version stamping
 
 Each HDA has an `hda_version` parameter (disabled string, bottom of the UI) showing the semantic version and commit hash: `v0.1.65 (abc1234)`. The version format is `v0.1.<commit_count> (<short_hash>)`.
 
-**When committing changes that touch any HDA** (code in `src/`, `hda_scripts*/`, or the `.hdalc` files), update the version stamp before saving the HDA definition:
+**When committing changes that touch any HDA** (code in `src/`, including `src/hda_scripts*/` and the `.hdalc` files), update the version stamp before saving the HDA definition:
 
 1. Get the new commit count: `git rev-list --count HEAD` (add 1 since the commit hasn't happened yet)
 2. Get the commit hash after committing: `git rev-parse --short HEAD`

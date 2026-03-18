@@ -102,7 +102,7 @@ def get_pref_dir_for_version(version: str) -> Path | None:
 
 def build_package_json(repo_root: Path) -> dict:
     """Build the Houdini package JSON content."""
-    hda_dir = (repo_root / "hda").as_posix()
+    hda_dir = (repo_root / "src" / "hda").as_posix()
     return {
         "env": [
             {
@@ -214,11 +214,11 @@ def main():
     args = parser.parse_args()
 
     repo_root = get_repo_root()
-    hda_dir = repo_root / "hda"
+    hda_dir = repo_root / "src" / "hda"
 
     # Verify repo structure
     if not hda_dir.is_dir():
-        print(f"Error: hda/ directory not found at {hda_dir}")
+        print(f"Error: src/hda/ directory not found at {hda_dir}")
         sys.exit(1)
 
     hdas = sorted(hda_dir.glob("*.hdalc"), key=lambda p: p.name)

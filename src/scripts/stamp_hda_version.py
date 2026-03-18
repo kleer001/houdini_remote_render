@@ -2,7 +2,7 @@
 """Stamp HDA version parameters with current git commit count and hash.
 
 Run from repo root:
-    python scripts/stamp_hda_version.py
+    python src/scripts/stamp_hda_version.py
 
 Requires: run inside Houdini Python (hython) or via MCP execute_houdini_code.
 For CI/standalone use, set HFS and source houdini_setup_bash first.
@@ -53,10 +53,10 @@ def stamp_hda(hda_path, version_string):
 
 def main():
     repo_root = subprocess.check_output(
-        ["git", "rev-top-level", "--show-toplevel"],
+        ["git", "rev-parse", "--show-toplevel"],
         text=True,
     ).strip()
-    hda_dir = os.path.join(repo_root, "hda")
+    hda_dir = os.path.join(repo_root, "src", "hda")
 
     count, short_hash = get_git_info()
     version_string = f"v0.1.{count} ({short_hash})"

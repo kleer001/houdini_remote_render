@@ -22,7 +22,7 @@ class TestBuildPackageJson:
         data = build_package_json(repo)
         env = data["env"][0]
         assert "HOUDINI_OTLSCAN_PATH" in env
-        assert env["HOUDINI_OTLSCAN_PATH"]["value"] == "/fake/repo/hda"
+        assert env["HOUDINI_OTLSCAN_PATH"]["value"] == "/fake/repo/src/hda"
         assert env["HOUDINI_OTLSCAN_PATH"]["method"] == "append"
 
     def test_has_path(self):
@@ -68,7 +68,7 @@ class TestInstallUninstall:
             package_file = pref_dir / "packages" / PACKAGE_FILENAME
             with open(package_file) as f:
                 data = json.load(f)
-            assert data["env"][0]["HOUDINI_OTLSCAN_PATH"]["value"] == "/fake/repo/hda"
+            assert data["env"][0]["HOUDINI_OTLSCAN_PATH"]["value"] == "/fake/repo/src/hda"
 
     def test_install_uses_unix_newlines(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -118,7 +118,7 @@ class TestInstallUninstall:
             package_file = pref_dir / "packages" / PACKAGE_FILENAME
             with open(package_file) as f:
                 data = json.load(f)
-            assert data["env"][0]["HOUDINI_OTLSCAN_PATH"]["value"] == "/new/repo/hda"
+            assert data["env"][0]["HOUDINI_OTLSCAN_PATH"]["value"] == "/new/repo/src/hda"
 
 
 class TestCheckStatus:
@@ -135,7 +135,7 @@ class TestCheckStatus:
 
             status = check_status(pref_dir)
             assert status["installed"] is True
-            assert status["hda_dir"] == "/my/repo/hda"
+            assert status["hda_dir"] == "/my/repo/src/hda"
 
     def test_corrupt_json(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -154,4 +154,4 @@ class TestGetRepoRoot:
     def test_returns_parent_of_install_py(self):
         root = get_repo_root()
         assert (root / "install.py").exists()
-        assert (root / "hda").is_dir()
+        assert (root / "src" / "hda").is_dir()

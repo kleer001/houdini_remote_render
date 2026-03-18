@@ -21,13 +21,13 @@ def _ensure_src_path(node):
     """Ensure the src/ directory is on sys.path for imports.
 
     Derives the repo root from the HDA's library file path:
-    hda/redshift_usd_packager.hdalc -> repo root is one level up.
+    src/hda/redshift_usd_packager.hdalc -> repo root is two levels up.
     """
     hda_def = node.type().definition()
     if hda_def is None:
         return
     hda_dir = os.path.dirname(hda_def.libraryFilePath())
-    repo_root = os.path.dirname(hda_dir)  # up from hda/ to repo root
+    repo_root = os.path.dirname(os.path.dirname(hda_dir))  # up from src/hda/ to repo root
 
     if repo_root not in sys.path:
         sys.path.insert(0, repo_root)
@@ -772,19 +772,19 @@ def _bake_houdini_paths(flat_usda_path, bake_dir, frame_range=None):
     import importlib.util
 
     # _ensure_src_path has already added repo_root to sys.path.
-    # The Karma PythonModule lives at repo_root/hda_scripts/PythonModule.py.
+    # The Karma PythonModule lives at repo_root/src/hda_scripts/PythonModule.py.
     # __file__ is NOT defined inside HDA-embedded code, so we find the
     # repo root from sys.path (set by _ensure_src_path).
     karma_pm_path = None
     for p in sys.path:
-        candidate = os.path.join(p, "hda_scripts", "PythonModule.py")
+        candidate = os.path.join(p, "src", "hda_scripts", "PythonModule.py")
         if os.path.isfile(candidate):
             karma_pm_path = candidate
             break
 
     if karma_pm_path is None:
         raise FileNotFoundError(
-            "Cannot find hda_scripts/PythonModule.py on sys.path. "
+            "Cannot find src/hda_scripts/PythonModule.py on sys.path. "
             "Is the repo root on sys.path via _ensure_src_path()?"
         )
 

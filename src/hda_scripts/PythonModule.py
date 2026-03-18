@@ -21,13 +21,13 @@ def _ensure_src_path(node):
     """Ensure the src/ directory is on sys.path for imports.
 
     Derives the repo root from the HDA's library file path:
-    hda/karma_usd_packager.hdalc -> repo root is one level up.
+    src/hda/karma_usd_packager.hdalc -> repo root is two levels up.
     """
     hda_def = node.type().definition()
     if hda_def is None:
         return
     hda_dir = os.path.dirname(hda_def.libraryFilePath())
-    repo_root = os.path.dirname(hda_dir)  # up from hda/ to repo root
+    repo_root = os.path.dirname(os.path.dirname(hda_dir))  # up from src/hda/ to repo root
 
     if repo_root not in sys.path:
         sys.path.insert(0, repo_root)

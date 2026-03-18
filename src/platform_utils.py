@@ -144,8 +144,8 @@ def copy_launcher(name: str, dest_dir: str) -> str:
     Returns:
         Full path to the copied launcher.
     """
-    # Resolve launchers/ relative to repo root (one level up from src/)
-    src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Resolve launchers/ — sibling directory within src/
+    src_dir = os.path.dirname(os.path.abspath(__file__))
     launcher_path = os.path.join(src_dir, "launchers", name)
 
     if not os.path.isfile(launcher_path):
