@@ -1,14 +1,14 @@
-# render_info.txt / cache_info.txt Reference
+# Metadata Files
 
-Machine-readable metadata files written to the **shot root** during packaging. One file per package — `render_info.txt` for render jobs, `cache_info.txt` for cache jobs.
+Machine-readable metadata written to the **shot root** during packaging. One file per package — `render_info.txt` for render jobs, `cache_info.txt` for cache jobs.
 
-Format: `key=value`, one per line, no quoting, no sections. Parseable with `grep`, `cut`, or a simple `dict(line.split("=", 1) for line in f)`.
+Format: `key=value`, one per line. Parseable with `grep`, `cut`, or any scripting language.
+
+The Python launchers (`run_render.py`, `run_cache.py`) read these files to determine which renderer to use and how to configure it. They are also useful for farm submission tools or manual pre-flight checks.
 
 ---
 
-## Karma (render_info.txt)
-
-Written inline in `hda_scripts/PythonModule.py`.
+## Karma — `render_info.txt`
 
 ```
 usdfile=shot_wrapper.usda
@@ -23,23 +23,21 @@ height=1080
 renderer=BRAY_HdKarma
 ```
 
-| Key | Source | Notes |
-|---|---|---|
-| `usdfile` | wrapper filename | The `.usda` in `Scenes/` that references the USDZ |
-| `startframe` | HDA parm | First frame |
-| `framecount` | computed | `frame_end - frame_start + 1` |
-| `frameinc` | hardcoded | Always `1` |
-| `device` | upstream `karmarendersettings` LOP | `CPU` or `GPU` (XPU) |
-| `format` | HDA parm | Output image format (`exr`, `png`, etc.) |
-| `outputname` | derived | Wrapper filename without extension |
-| `width` / `height` | USD `RenderSettings` prim | Falls back to `1920x1080` |
-| `renderer` | derived from engine | `BRAY_HdKarma` (CPU) or `BRAY_HdKarmaXPU` |
+| Key | What it means |
+|---|---|
+| **`usdfile`** | The `.usda` scene file in `Scenes/` — this is what husk renders |
+| **`startframe`** | First frame to render |
+| **`framecount`** | Total number of frames (not the end frame) |
+| **`frameinc`** | Frame step — always `1` |
+| **`device`** | `CPU` or `GPU` (XPU) |
+| **`format`** | Output image format (`exr`, `png`, etc.) |
+| **`outputname`** | Base name for output files |
+| **`width`** / **`height`** | Render resolution in pixels |
+| **`renderer`** | Hydra delegate — `BRAY_HdKarma` (CPU) or `BRAY_HdKarmaXPU` (GPU+CPU) |
 
 ---
 
-## Mantra (render_info.txt)
-
-Written by `src/mantra_info_writer.py:write_mantra_info()`.
+## Mantra — `render_info.txt`
 
 ```
 shot_name=shot
@@ -64,31 +62,29 @@ houdini_version=21.0.631
 generated_at=2026-03-15T14:30:00
 ```
 
-| Key | Source | Notes |
-|---|---|---|
-| `shot_name` | HDA parm | Shot identifier |
-| `folder_name` | computed | `{shot}_P{pod}T{team}_v{ver}` |
-| `renderer` | hardcoded | Always `mantra` |
-| `method` | hardcoded | Always `ifd` (scene description format) |
-| `render_engine` | Mantra ROP parm | `micropoly`, `raytrace`, `pbr` |
-| `startframe` / `endframe` / `frameinc` | Mantra ROP parms | Frame range |
-| `framecount` | computed | `(end - start) / inc + 1` |
-| `resolution` | Mantra ROP parms | `WIDTHxHEIGHT` |
-| `pixel_samples` | Mantra ROP parms | `XxY` |
-| `camera` | Mantra ROP parm | Houdini object path |
-| `rop_node` | node path | Full Houdini path to the Mantra ROP |
-| `output_picture` | rewritten | Relative to package root |
-| `ifd_count` | computed | Number of IFD files generated |
-| `ifd_pattern` | derived | printf-style IFD filename |
-| `texture_count` / `textures_size_mb` | gathered | Texture stats |
-| `houdini_version` | runtime | From `hou.applicationVersionString()` |
-| `generated_at` | runtime | ISO 8601 timestamp |
+| Key | What it means |
+|---|---|
+| **`shot_name`** | Shot identifier |
+| **`folder_name`** | Package folder name (`{shot}_P{pod}T{team}_v{ver}`) |
+| **`renderer`** | Always `mantra` |
+| **`method`** | Always `ifd` — Mantra's scene description format |
+| **`render_engine`** | Mantra engine: `micropoly`, `raytrace`, or `pbr` |
+| **`startframe`** / **`endframe`** / **`frameinc`** | Frame range |
+| **`framecount`** | Total number of frames |
+| **`resolution`** | `WIDTHxHEIGHT` in pixels |
+| **`pixel_samples`** | Sampling quality (`XxY`) |
+| **`camera`** | Houdini camera path |
+| **`rop_node`** | Houdini path to the Mantra ROP |
+| **`output_picture`** | Output path relative to package root |
+| **`ifd_count`** | Number of IFD scene files generated |
+| **`ifd_pattern`** | printf-style filename pattern for IFD files |
+| **`texture_count`** / **`textures_size_mb`** | How many textures were gathered, and their total size |
+| **`houdini_version`** | Houdini version used to package |
+| **`generated_at`** | ISO 8601 timestamp |
 
 ---
 
-## Redshift (render_info.txt)
-
-Written by `src/redshift_info_writer.py:write_redshift_info()`.
+## Redshift — `render_info.txt`
 
 ```
 shot_name=shot
@@ -110,29 +106,27 @@ houdini_version=21.0.631
 generated_at=2026-03-16T10:00:00
 ```
 
-| Key | Source | Notes |
-|---|---|---|
-| `shot_name` | HDA parm | Shot identifier |
-| `folder_name` | computed | `{shot}_P{pod}T{team}_v{ver}` |
-| `renderer` | hardcoded | Always `redshift` |
-| `command` | hardcoded | Always `redshiftUsdCmdLine` |
-| `startframe` / `endframe` / `frameinc` | HDA parms | Frame range |
-| `framecount` | computed | `(end - start) / inc + 1` |
-| `resolution` | USD `RenderSettings` prim | `WIDTHxHEIGHT` |
-| `camera` | USD `RenderSettings` prim | USD prim path |
-| `gpu_device` | HDA parm | Device ordinal or `all` |
-| `aov_count` | USD stage | Number of RenderVar prims |
-| `usd_file` | wrapper filename | The `.usda` in `Scenes/` |
-| `texture_cache_gb` | HDA parm | Optional — omitted if not set |
-| `ocio_config` | HDA parm | Optional — omitted if not set |
-| `houdini_version` | runtime | From `hou.applicationVersionString()` |
-| `generated_at` | runtime | ISO 8601 timestamp |
+| Key | What it means |
+|---|---|
+| **`shot_name`** | Shot identifier |
+| **`folder_name`** | Package folder name |
+| **`renderer`** | Always `redshift` |
+| **`command`** | Always `redshiftUsdCmdLine` |
+| **`startframe`** / **`endframe`** / **`frameinc`** | Frame range |
+| **`framecount`** | Total number of frames |
+| **`resolution`** | `WIDTHxHEIGHT` in pixels |
+| **`camera`** | USD prim path to the camera |
+| **`gpu_device`** | Which GPU(s) to use — `all` or a device number (`0`, `1`, etc.) |
+| **`aov_count`** | Number of render output layers (AOVs) |
+| **`usd_file`** | The `.usda` scene file in `Scenes/` |
+| **`texture_cache_gb`** | GPU texture cache budget in GB (omitted if not set) |
+| **`ocio_config`** | Path to OCIO color config (omitted if not set) |
+| **`houdini_version`** | Houdini version used to package |
+| **`generated_at`** | ISO 8601 timestamp |
 
 ---
 
-## File Cache (cache_info.txt)
-
-Written by `src/cache_info_writer.py:write_cache_info()`.
+## File Cache — `cache_info.txt`
 
 ```
 shot_name=shot
@@ -150,28 +144,33 @@ houdini_version=21.0.631
 generated_at=2026-03-15T12:00:00
 ```
 
-| Key | Source | Notes |
-|---|---|---|
-| `shot_name` | HDA parm | Shot identifier |
-| `folder_name` | computed | `{shot}_P{pod}T{team}_v{ver}` |
-| `startframe` / `endframe` / `frameinc` | File Cache SOP parms | Frame range |
-| `substeps` | File Cache SOP parm | Substeps per frame |
-| `framecount` | computed | `(end - start) / inc + 1` |
-| `cache_format` | File Cache SOP parm | `.bgeo.sc`, `.vdb`, etc. |
-| `cache_node` | node path | Full Houdini path to the internal filecache node |
-| `cache_output` | rewritten | Relative to package root |
-| `hipfile` | derived | Portable `.hip` in `Scenes/` |
-| `houdini_version` | runtime | From `hou.applicationVersionString()` |
-| `generated_at` | runtime | ISO 8601 timestamp |
+| Key | What it means |
+|---|---|
+| **`shot_name`** | Shot identifier |
+| **`folder_name`** | Package folder name |
+| **`startframe`** / **`endframe`** / **`frameinc`** | Frame range |
+| **`substeps`** | Substeps per frame (for simulations that need sub-frame resolution) |
+| **`framecount`** | Total number of frames |
+| **`cache_format`** | File format — `.bgeo.sc` (compressed geometry), `.vdb` (volumes), etc. |
+| **`cache_node`** | Full Houdini node path to the cache node inside the portable `.hip` |
+| **`cache_output`** | Output path relative to package root |
+| **`hipfile`** | Portable `.hip` scene in `Scenes/` |
+| **`houdini_version`** | Houdini version used to package |
+| **`generated_at`** | ISO 8601 timestamp |
 
 ---
 
-## Inconsistencies
+## Field Differences Between Renderers
 
-Karma's `render_info.txt` is written inline with a different field set than Mantra/Redshift:
-- No `shot_name`, `folder_name`, `endframe`, `houdini_version`, or `generated_at`
-- Uses `width`/`height` instead of `resolution=WxH`
-- Uses `framecount` (like Mantra/Redshift) but no `endframe`
-- Uses `device` and `format` fields unique to Karma
+Karma's info file uses a simpler field set — it predates the Mantra and Redshift packagers and doesn't include `shot_name`, `folder_name`, `endframe`, `houdini_version`, or `generated_at`. It also uses separate `width`/`height` fields instead of `resolution=WxH`.
 
-The cache workflow uses `cache_info.txt` while all render workflows use `render_info.txt`.
+| Field | Karma | Mantra | Redshift | Cache |
+|---|---|---|---|---|
+| `shot_name` | — | yes | yes | yes |
+| `folder_name` | — | yes | yes | yes |
+| `startframe` | yes | yes | yes | yes |
+| `endframe` | — | yes | yes | yes |
+| `framecount` | yes | yes | yes | yes |
+| `resolution` / `width`+`height` | `width`+`height` | `resolution` | `resolution` | — |
+| `houdini_version` | — | yes | yes | yes |
+| `generated_at` | — | yes | yes | yes |

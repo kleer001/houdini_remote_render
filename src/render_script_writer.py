@@ -3,7 +3,10 @@
 import os
 from datetime import datetime
 
-from src.platform_utils import detect_hfs, hfs_source_block, make_executable, copy_launcher
+from src.platform_utils import (
+    detect_hfs, hfs_source_block, script_preamble_block, script_footer_block,
+    make_executable, copy_launcher,
+)
 
 
 def write_render_script(
@@ -98,6 +101,7 @@ def write_render_script(
 set -e
 cd "$(dirname "$0")/.."
 {hfs_source_block(hfs_path)}
+{script_preamble_block("render_log.txt")}
 echo "Starting render: {shot_name}"
 echo "Frames: {frame_start}-{frame_end}"
 echo "Renderer: {renderer}"
@@ -106,13 +110,19 @@ echo ""
 # husk resolves productName paths relative to CWD, so run from Scenes/
 cd Scenes
 
+if [ "$DRY_RUN" = true ]; then
+    echo "DRY RUN — would execute:"
+    echo "  husk {flags_str} \\"{wrapper_filename}\\""
+    exit 0
+fi
+
 husk \\
     {flags_str} \\
     "{wrapper_filename}"
 
 echo ""
 echo "Render complete."
-"""
+{script_footer_block()}"""
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", newline="\n") as f:

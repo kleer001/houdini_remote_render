@@ -154,6 +154,50 @@ class TestWriteMantraScript:
             assert "shot.%04d.ifd" in content
 
 
+class TestDryRunAndLogging:
+    def _generate(self):
+        import tempfile
+        tmpdir = tempfile.mkdtemp()
+        path = os.path.join(tmpdir, "Scripts", "run_render.sh")
+        write_mantra_script(
+            output_path=path,
+            shot_name="test",
+            ifd_pattern="test.%04d.ifd",
+            frame_start=1,
+            frame_end=10,
+        )
+        with open(path) as f:
+            return f.read()
+
+    def test_dry_run_guard(self):
+        content = self._generate()
+        assert 'DRY_RUN=false' in content
+        assert '--dry-run) DRY_RUN=true' in content
+        assert '[ "$DRY_RUN" = true ]' in content
+        assert "DRY RUN" in content
+
+    def test_dry_run_exits_before_loop(self):
+        content = self._generate()
+        dry_pos = content.index("DRY RUN")
+        exit_pos = content.index("exit 0", dry_pos)
+        loop_pos = content.index("for frame in")
+        assert exit_pos < loop_pos
+
+    def test_logging_setup(self):
+        content = self._generate()
+        assert 'LOGFILE="../render_log.txt"' in content
+        assert "tee -a" in content
+
+    def test_elapsed_time(self):
+        content = self._generate()
+        assert "${SECONDS}s" in content
+
+    def test_timestamps(self):
+        content = self._generate()
+        assert "date -Iseconds" in content
+        assert "hostname" in content
+
+
 class TestPythonLauncherCopied:
     def test_run_render_py_created(self):
         with tempfile.TemporaryDirectory() as tmpdir:

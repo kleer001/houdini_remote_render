@@ -3,7 +3,10 @@
 import os
 from datetime import datetime
 
-from src.platform_utils import detect_hfs, hfs_source_block, make_executable, copy_launcher
+from src.platform_utils import (
+    detect_hfs, hfs_source_block, script_preamble_block, script_footer_block,
+    make_executable, copy_launcher,
+)
 
 
 def write_orchestration_script(
@@ -27,20 +30,20 @@ def write_orchestration_script(
     hfs_path = hfs_path or detect_hfs()
     total = len(cache_scripts) + 1  # caches + render
 
-    # Build step blocks
+    # Build step blocks — pass --dry-run through to sub-scripts
     steps: list[str] = []
     for i, (label, filename) in enumerate(cache_scripts, 1):
         steps.append(f"""\
 # Step {i}/{total}: Cache — {label}
 echo "--- [{i}/{total}] Cache: {label} ---"
-bash "Scripts/{filename}"
+bash "Scripts/{filename}" $_DR
 echo "--- [{i}/{total}] complete ---"
 echo """"")
 
     steps.append(f"""\
 # Step {total}/{total}: Render
 echo "--- [{total}/{total}] Render ---"
-bash "Scripts/{render_script_filename}"
+bash "Scripts/{render_script_filename}" $_DR
 echo "--- [{total}/{total}] complete ---"
 echo """"")
 
@@ -55,13 +58,21 @@ echo """"")
 set -e
 cd "$(dirname "$0")/.."
 {hfs_source_block(hfs_path)}
+{script_preamble_block("orchestration_log.txt")}
+# Pass --dry-run to sub-scripts
+if [ "$DRY_RUN" = true ]; then
+    _DR="--dry-run"
+else
+    _DR=""
+fi
+
 echo "=== Orchestrated Build: {shot_name} ==="
 echo "Steps: {len(cache_scripts)} cache(s) + 1 render"
 echo ""
 
 {steps_block}
 echo "=== All {total} steps complete ==="
-"""
+{script_footer_block()}"""
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", newline="\n") as f:

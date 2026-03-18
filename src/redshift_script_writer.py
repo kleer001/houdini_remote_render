@@ -8,7 +8,8 @@ import os
 from datetime import datetime
 
 from src.platform_utils import (
-    detect_redshift, redshift_env_block, make_executable, copy_launcher,
+    detect_redshift, redshift_env_block, script_preamble_block,
+    script_footer_block, make_executable, copy_launcher,
 )
 
 
@@ -93,6 +94,7 @@ def write_redshift_script(
 set -e
 cd "$(dirname "$0")/.."
 {redshift_env_block(redshift_path)}
+{script_preamble_block("render_log.txt")}
 echo "Starting Redshift render: {shot_name}"
 echo "Frames: {frame_start}-{frame_end} (inc {frame_inc})"
 echo "GPU device: {gpu_device}"
@@ -102,13 +104,19 @@ echo ""
 cd Scenes
 mkdir -p ../Output
 
+if [ "$DRY_RUN" = true ]; then
+    echo "DRY RUN — would execute:"
+    echo "  redshiftUsdCmdLine \\"{wrapper_filename}\\" {flags_str}"
+    exit 0
+fi
+
 redshiftUsdCmdLine \\
     "{wrapper_filename}" \\
     {flags_str}
 
 echo ""
 echo "Render complete."
-"""
+{script_footer_block()}"""
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", newline="\n") as f:

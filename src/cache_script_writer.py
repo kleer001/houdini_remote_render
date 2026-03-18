@@ -7,7 +7,10 @@ hbatch's ``render`` command only works with ROP nodes and silently skips SOPs.
 import os
 from datetime import datetime
 
-from src.platform_utils import detect_hfs, hfs_source_block, make_executable, copy_launcher
+from src.platform_utils import (
+    detect_hfs, hfs_source_block, script_preamble_block, script_footer_block,
+    make_executable, copy_launcher,
+)
 
 
 def write_cache_script(
@@ -41,10 +44,17 @@ def write_cache_script(
 set -e
 cd "$(dirname "$0")/.."
 {hfs_source_block(hfs_path)}
+{script_preamble_block("cache_log.txt")}
 echo "Starting cache: {shot_name}"
 echo "Frames: {frame_start}-{frame_end}"
 echo "Node: {cache_node_path}"
 echo ""
+
+if [ "$DRY_RUN" = true ]; then
+    echo "DRY RUN — would execute:"
+    echo "  hython -c '...load Scenes/{hip_filename}, cook {cache_node_path}, frames {frame_start}-{frame_end}'"
+    exit 0
+fi
 
 hython -c '
 import hou, sys
@@ -64,7 +74,7 @@ node.parm("execute").pressButton()
 
 echo ""
 echo "Cache complete."
-"""
+{script_footer_block()}"""
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", newline="\n") as f:

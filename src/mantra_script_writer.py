@@ -7,7 +7,10 @@ render tokens — no Houdini license required on the remote machine.
 import os
 from datetime import datetime
 
-from src.platform_utils import detect_hfs, hfs_source_block, make_executable, copy_launcher
+from src.platform_utils import (
+    detect_hfs, hfs_source_block, script_preamble_block, script_footer_block,
+    make_executable, copy_launcher,
+)
 
 
 def write_mantra_script(
@@ -41,12 +44,19 @@ def write_mantra_script(
 set -e
 cd "$(dirname "$0")/.."
 {hfs_source_block(hfs_path)}
+{script_preamble_block("render_log.txt")}
 export HOUDINI_TEXTURE_PATH="$(pwd)/Textures:&"
 
 echo "Starting Mantra render: {shot_name}"
 echo "Frames: {frame_start}-{frame_end} (inc {frame_inc})"
 echo "IFD pattern: {ifd_pattern}"
 echo ""
+
+if [ "$DRY_RUN" = true ]; then
+    echo "DRY RUN — would execute for each frame:"
+    echo "  mantra -V 2a -j 0 -f \\"{ifd_pattern}\\""
+    exit 0
+fi
 
 cd IFDs
 for frame in $(seq {frame_start} {frame_inc} {frame_end}); do
@@ -57,7 +67,7 @@ done
 
 echo ""
 echo "Render complete."
-"""
+{script_footer_block()}"""
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", newline="\n") as f:

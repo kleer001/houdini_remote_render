@@ -162,6 +162,35 @@ def copy_launcher(name: str, dest_dir: str) -> str:
     return dest
 
 
+def script_preamble_block(log_name: str) -> str:
+    """Return a bash snippet that sets up logging and ``--dry-run`` parsing.
+
+    Args:
+        log_name: Log filename (e.g. "render_log.txt"). Written to the shot
+            root (one directory up from Scripts/).
+    """
+    return f"""
+# --- Logging & dry-run ---
+LOGFILE="../{log_name}"
+DRY_RUN=false
+for arg in "$@"; do
+    case "$arg" in --dry-run) DRY_RUN=true ;; esac
+done
+exec > >(tee -a "$LOGFILE") 2>&1
+echo "Started: $(date -Iseconds)"
+echo "Host:    $(hostname)"
+"""
+
+
+def script_footer_block() -> str:
+    """Return a bash snippet that prints elapsed time and finish timestamp."""
+    return """
+echo ""
+echo "Elapsed: ${SECONDS}s"
+echo "Finished: $(date -Iseconds)"
+"""
+
+
 def detect_redshift() -> str | None:
     """Return ``$REDSHIFT_COREDATAPATH`` from environment, or None.
 
