@@ -2,7 +2,7 @@
 # Clones the repo and installs HDAs for all detected Houdini versions.
 #
 # Usage:
-#   irm https://raw.githubusercontent.com/kleer001/houdini_remote_render/main/scripts/bootstrap.ps1 | iex
+#   irm https://raw.githubusercontent.com/kleer001/houdini_remote_render/main/src/scripts/bootstrap.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
