@@ -389,3 +389,48 @@ def on_package_clicked(kwargs):
         _log(node, "")
         for w in warnings:
             _log(node, f"  ! {w}")
+
+
+def on_update_clicked(kwargs):
+    """Pull latest from git and reload all HDAs in this repo."""
+    import hou
+    import subprocess
+    import glob
+    node = kwargs["node"]
+
+    hda_def = node.type().definition()
+    hda_dir = os.path.dirname(hda_def.libraryFilePath())
+    repo_root = os.path.dirname(os.path.dirname(hda_dir))
+
+    try:
+        result = subprocess.run(
+            ["git", "pull"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except Exception as e:
+        hou.ui.displayMessage(f"git pull failed:\n{e}", severity=hou.severityType.Error)
+        return
+
+    if result.returncode != 0:
+        hou.ui.displayMessage(
+            f"git pull failed:\n\n{result.stderr.strip()}",
+            severity=hou.severityType.Error,
+        )
+        return
+
+    hda_path = os.path.join(repo_root, "src", "hda")
+    reloaded = []
+    for hda_file in sorted(glob.glob(os.path.join(hda_path, "*.hda*"))):
+        try:
+            hou.hda.reloadFile(hda_file)
+            reloaded.append(os.path.basename(hda_file))
+        except Exception:
+            pass
+
+    msg = result.stdout.strip() or "Already up to date."
+    if reloaded:
+        msg += "\n\nReloaded:\n" + "\n".join(reloaded)
+    hou.ui.displayMessage(msg, title="Update Complete")
