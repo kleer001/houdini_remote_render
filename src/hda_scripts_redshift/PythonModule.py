@@ -758,34 +758,6 @@ def on_package_clicked(kwargs):
     node.parm("log_output").set("\n".join(log))
 
 
-def on_get_from_stage_clicked(kwargs):
-    """Read frame range from downstream USD Render ROP."""
-    import hou
-    node = kwargs["node"]
-
-    for output in node.outputs():
-        if output.type().name() in ("usdrender_rop", "Redshift_IPR"):
-            try:
-                start = output.parm("f1").eval()
-                end = output.parm("f2").eval()
-                node.parm("frame_start").set(start)
-                node.parm("frame_end").set(end)
-                return
-            except Exception as e:
-                if _has_ui():
-                    hou.ui.displayMessage(
-                        f"Found ROP at {output.path()} but couldn't read "
-                        f"frame range: {e}",
-                        severity=hou.severityType.Warning,
-                    )
-                return
-
-    if _has_ui():
-        hou.ui.displayMessage(
-            "No render ROP found downstream.",
-            severity=hou.severityType.Warning,
-        )
-
 
 def _bake_houdini_paths(flat_usda_path, bake_dir, frame_range=None):
     """Delegate to the Karma packager's bake implementation.

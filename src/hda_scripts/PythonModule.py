@@ -1011,28 +1011,3 @@ def on_package_clicked(kwargs):
     node.parm("log_output").set("\n".join(log))
 
 
-def on_get_from_rop_clicked(kwargs):
-    """Walk outputs to find Karma ROP and read frame range."""
-    import hou
-    node = kwargs["node"]
-
-    for output in node.outputs():
-        if output.type().name() in ("usdrender_rop", "karma"):
-            try:
-                start = output.parm("f1").eval()
-                end = output.parm("f2").eval()
-                node.parm("frame_start").set(start)
-                node.parm("frame_end").set(end)
-                return
-            except Exception as e:
-                hou.ui.displayMessage(
-                    f"Found ROP at {output.path()} but couldn't read "
-                    f"frame range: {e}",
-                    severity=hou.severityType.Warning,
-                )
-                return
-
-    hou.ui.displayMessage(
-        "No Karma ROP found downstream. Connect this node before a Karma ROP.",
-        severity=hou.severityType.Warning,
-    )
