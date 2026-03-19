@@ -29,6 +29,12 @@ def onCreate(kwargs):
                     output.setInput(0, node, 0)
                     break
 
+        # Lock frame parms — auto-populated from downstream ROP
+        for pname in ("frame_start", "frame_end"):
+            p = node.parm(pname)
+            if p:
+                p.lock(True)
+
         # Set node color (deep red) and shape (X)
         node.setColor(hou.Color((0.8, 0.1, 0.1)))
         node.setUserData("nodeshape", "null")

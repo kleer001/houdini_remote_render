@@ -57,6 +57,18 @@ def _build_folder_name(node):
     return f"{shot}_P{pod}T{team}_{ver}"
 
 
+def _find_downstream_rop(node):
+    """Find a Karma ROP connected downstream. Returns the node or None."""
+    rop_types = ("usdrender_rop", "karma")
+    for output in node.outputs():
+        if output.type().name() in rop_types:
+            return output
+        for grandchild in output.outputs():
+            if grandchild.type().name() in rop_types:
+                return grandchild
+    return None
+
+
 def _bake_opdef(opdef_path, bake_dir):
     """Extract opdef: HDA section content to a file on disk.
 
@@ -411,7 +423,7 @@ def on_verify_clicked(kwargs):
     try:
         from src.validator import (
             validate_shot_name, validate_hip_saved,
-            validate_shot_structure, validate_rop_connection,
+            validate_shot_structure,
         )
         from src.auditor import audit_stage
 
@@ -448,13 +460,18 @@ def on_verify_clicked(kwargs):
         else:
             log.append(f"  [3/5] Shot directory ...... PASS")
 
-        # [4/5] Karma ROP
-        ok, msg = validate_rop_connection(node)
-        if ok:
+        # [4/5] Karma ROP — required; auto-populate frame range from it
+        rop_node = _find_downstream_rop(node)
+        if rop_node:
+            f_start = int(rop_node.parm("f1").eval())
+            f_end = int(rop_node.parm("f2").eval())
+            node.parm("frame_start").set(f_start)
+            node.parm("frame_end").set(f_end)
             log.append(f"  [4/5] Karma ROP ........... PASS")
+            log.append(f"        Frame range           {f_start}-{f_end}")
         else:
-            log.append(f"  [4/5] Karma ROP ........... WARN (not connected)")
-            warnings.append("No Karma ROP found downstream")
+            log.append(f"  [4/5] Karma ROP ........... FAIL (not connected)")
+            has_failure = True
 
         # [5/5] Stage audit
         input_node = node.inputs()[0] if node.inputs() else None
@@ -623,6 +640,18 @@ def on_package_clicked(kwargs):
         if msg:
             if not hou.ui.displayConfirmation(msg + "\n\nContinue anyway?"):
                 return
+
+        # Require downstream Karma ROP — read frame range from it before writing anything
+        rop_node = _find_downstream_rop(node)
+        if not rop_node:
+            hou.ui.displayMessage(
+                "No Karma ROP connected downstream.\n\n"
+                "Connect this packager before a Karma ROP before packaging.",
+                severity=hou.severityType.Error,
+            )
+            return
+        node.parm("frame_start").set(int(rop_node.parm("f1").eval()))
+        node.parm("frame_end").set(int(rop_node.parm("f2").eval()))
 
         t0 = time.time()
 

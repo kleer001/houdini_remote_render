@@ -97,4 +97,4 @@ def validate_rop_connection(node) -> tuple[bool, str]:
             if grandchild.type().name() in ("usdrender_rop", "karma"):
                 return True, ""
 
-    return True, "Warning: no Karma ROP found downstream. Output paths may not be set."
+    return False, "No Karma ROP found downstream. Connect this packager before a Karma ROP."

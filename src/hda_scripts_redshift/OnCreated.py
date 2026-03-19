@@ -10,6 +10,12 @@ def OnCreated(kwargs):
 
     node = kwargs["node"]
 
+    # Lock frame parms — auto-populated from downstream ROP
+    for pname in ("frame_start", "frame_end"):
+        p = node.parm(pname)
+        if p:
+            p.lock(True)
+
     # Redshift brand red
     node.setColor(hou.Color((0.8, 0.15, 0.15)))
     node.setUserData("nodeshape", "clipped_right")

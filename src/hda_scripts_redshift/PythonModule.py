@@ -63,6 +63,18 @@ def _has_ui():
     return hasattr(hou, "ui") and hou.ui is not None
 
 
+def _find_downstream_rop(node):
+    """Find a Redshift or USD render ROP downstream. Returns the node or None."""
+    rop_types = ("usdrender_rop", "Redshift_IPR")
+    for output in node.outputs():
+        if output.type().name() in rop_types:
+            return output
+        for grandchild in output.outputs():
+            if grandchild.type().name() in rop_types:
+                return grandchild
+    return None
+
+
 def on_shot_name_changed(kwargs):
     """Parameter callback — flag red background if invalid."""
     import hou
@@ -259,30 +271,29 @@ def on_verify_clicked(kwargs):
             log.append(f"  [5/5] Stage audit ......... FAIL (no input)")
             has_failure = True
 
-        # Check downstream render ROP for "Current Frame" pitfall
-        for output in node.outputs():
-            rop_type = output.type().name()
-            if rop_type in ("usdrender_rop", "Redshift_IPR", "karma"):
-                trange_parm = output.parm("trange")
-                if trange_parm and trange_parm.eval() == 0:
-                    warnings.append(
-                        f"Downstream ROP '{output.name()}' is set to "
-                        f"'Render Current Frame'. It will only render "
-                        f"whichever frame is active — not a sequence. "
-                        f"Set it to 'Render Frame Range' if you want "
-                        f"an animation."
-                    )
-                break
-
-        # Check if packager's own frame range is a single frame
-        frame_start_val = node.parm("frame_start").eval()
-        frame_end_val = node.parm("frame_end").eval()
-        if frame_start_val == frame_end_val:
-            warnings.append(
-                f"Frame range is a single frame ({int(frame_start_val)}). "
-                f"If you intended to render a sequence, update Frame "
-                f"Start/End in the Packaging tab."
-            )
+        # Require downstream ROP — auto-populate frame range from it
+        rop_node = _find_downstream_rop(node)
+        if rop_node:
+            f_start = int(rop_node.parm("f1").eval())
+            f_end = int(rop_node.parm("f2").eval())
+            node.parm("frame_start").set(f_start)
+            node.parm("frame_end").set(f_end)
+            trange_parm = rop_node.parm("trange")
+            if trange_parm and trange_parm.eval() == 0:
+                warnings.append(
+                    f"Downstream ROP '{rop_node.name()}' is set to "
+                    f"'Render Current Frame'. It will only render "
+                    f"whichever frame is active — not a sequence. "
+                    f"Set it to 'Render Frame Range' if you want an animation."
+                )
+            if f_start == f_end:
+                warnings.append(
+                    f"Frame range is a single frame ({f_start}). "
+                    f"If rendering a sequence, update the downstream ROP's frame range."
+                )
+        else:
+            log.append(f"  [ROP] Downstream ROP .......... FAIL (not connected)")
+            has_failure = True
 
         # [DEPS] Upstream dependency scan
         try:
@@ -370,6 +381,20 @@ def on_package_clicked(kwargs):
                 hou.ui.displayMessage(msg, severity=hou.severityType.Error)
             return
         hip_warning = msg
+
+        # Require downstream ROP — read frame range from it before writing anything
+        rop_node = _find_downstream_rop(node)
+        if not rop_node:
+            if _has_ui():
+                hou.ui.displayMessage(
+                    "No render ROP connected downstream.\n\n"
+                    "Connect this packager before a USD Render ROP or Redshift IPR "
+                    "before packaging.",
+                    severity=hou.severityType.Error,
+                )
+            return
+        node.parm("frame_start").set(int(rop_node.parm("f1").eval()))
+        node.parm("frame_end").set(int(rop_node.parm("f2").eval()))
 
         t0 = time.time()
 
